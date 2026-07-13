@@ -3,6 +3,8 @@
 import dynamic from "next/dynamic";
 import React from "react";
 
+// Dynamically import the main application with SSR disabled to prevent 
+// React hydration mismatches with browser-side localStorage.
 const StudyGuideApp = dynamic(() => import("@/components/StudyGuideApp"), {
   ssr: false,
   loading: () => (

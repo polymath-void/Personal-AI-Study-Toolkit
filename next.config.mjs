@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: "standalone",
   reactStrictMode: true,
   typescript: {
     ignoreBuildErrors: false,
@@ -8,4 +9,5 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
 };
+
 export default nextConfig;

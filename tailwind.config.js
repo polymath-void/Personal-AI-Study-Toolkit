@@ -8,6 +8,10 @@ module.exports = {
   darkMode: "class",
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['var(--font-nunito)', 'sans-serif'],
+        heading: ['var(--font-quicksand)', 'sans-serif'],
+      },
       colors: {
         darkBg: "#05080f",
         darkCard: "#090f1a",

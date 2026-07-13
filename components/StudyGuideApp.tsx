@@ -1760,179 +1760,39 @@ export default function StudyGuideApp() {
                 </div>
               </div>
 
-              {/* POMODORO CONTROLS & WORKSPACE SUBTABS */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 shrink-0">
-                
-                {/* POMODORO TIMER PANEL */}
-                <div className="flex items-center gap-3 px-3.5 py-1.5 bg-slate-100 dark:bg-[#0c1221] border dark:border-white/5 border-slate-200 rounded-xl" id="pomodoro_timer_panel">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className={`w-3.5 h-3.5 ${timerIsRunning ? "text-emerald-400 animate-pulse" : "text-slate-400"}`} />
-                    <span className="text-[9px] font-mono font-bold tracking-wider uppercase text-slate-500 hidden sm:inline">
-                      {timerMode === "focus" ? "Focus" : "Break"}
-                    </span>
-                  </div>
-                  
-                  <div className="px-2 py-0.5 bg-white dark:bg-[#05080f] rounded-lg border border-slate-200 dark:border-white/5 shadow-inner">
-                    <span className="text-xs font-mono font-bold text-slate-800 dark:text-emerald-400">
-                      {String(timerMinutes).padStart(2, "0")}:{String(timerSeconds).padStart(2, "0")}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setTimerIsRunning(!timerIsRunning)}
-                      className={`p-1 rounded text-white transition-all cursor-pointer ${
-                        timerIsRunning 
-                          ? "bg-amber-600 hover:bg-amber-500" 
-                          : "bg-emerald-600 hover:bg-emerald-500"
-                      }`}
-                      title={timerIsRunning ? "Pause timer" : "Start timer"}
-                    >
-                      {timerIsRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+              {/* TIMER & MUSIC (SIMPLIFIED FOR KIDS) */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-2xl font-bold font-mono border border-indigo-500/20">
+                    <Clock className="w-4 h-4 mr-2" />
+                    <span>{String(timerMinutes).padStart(2, "0")}:{String(timerSeconds).padStart(2, "0")}</span>
+                    <button onClick={() => setTimerIsRunning(!timerIsRunning)} className="ml-2 bg-indigo-500 text-white rounded-full p-1 transition-transform hover:scale-110 active:scale-95">
+                      {timerIsRunning ? <Pause className="w-3 h-3"/> : <Play className="w-3 h-3"/>}
                     </button>
-                    
-                    <button
-                      onClick={() => {
+                    <button onClick={() => {
                         setTimerIsRunning(false);
                         setTimerSeconds(0);
                         if (timerMode === "focus") setTimerMinutes(timerDuration);
                         else setTimerMinutes(5);
-                      }}
-                      className="p-1 rounded bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-all cursor-pointer"
-                      title="Reset timer"
-                    >
+                      }} className="ml-1 text-indigo-400 hover:text-indigo-600 p-1 transition-transform hover:rotate-180 duration-300">
                       <RotateCcw className="w-3 h-3" />
                     </button>
                   </div>
-
-                  <div className="flex items-center gap-1 border-l border-slate-200 dark:border-white/5 pl-2">
-                    {([
-                      { mode: "focus", label: "25m", mins: 25 },
-                      { mode: "shortBreak", label: "5m", mins: 5 },
-                    ] as const).map((p) => (
-                      <button
-                        key={p.mode}
-                        onClick={() => {
-                          setTimerIsRunning(false);
-                          setTimerMode(p.mode);
-                          setTimerDuration(p.mins);
-                          setTimerMinutes(p.mins);
-                          setTimerSeconds(0);
-                        }}
-                        className={`px-1.5 py-0.5 text-[9px] font-mono font-bold rounded transition-all cursor-pointer ${
-                          timerMode === p.mode
-                            ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
-                            : "text-slate-500 hover:text-slate-300 hover:bg-slate-800"
-                        }`}
-                      >
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* BACKGROUND AMBIANCE CONTROLLER */}
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-[#0c1221] border dark:border-white/5 border-slate-200 rounded-xl" id="background_ambiance_panel">
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Headphones className={`w-3.5 h-3.5 ${ambientPlaying ? "text-emerald-400 animate-pulse" : "text-slate-400"}`} />
-                    <span className="text-[9px] font-mono font-bold tracking-wider uppercase text-slate-500 hidden sm:inline">
-                      {appLanguage === "en" ? "Ambiance" : "আবহ"}
-                    </span>
-                  </div>
-
-                  {/* Play / Pause Toggle (Only if sound is selected) */}
-                  {ambientSound !== "none" && (
-                    <button
-                      onClick={() => setAmbientPlaying(!ambientPlaying)}
-                      className={`p-1 rounded text-white transition-all cursor-pointer ${
-                        ambientPlaying 
-                          ? "bg-amber-600 hover:bg-amber-500" 
-                          : "bg-emerald-600 hover:bg-emerald-500"
-                      }`}
-                      title={ambientPlaying ? "Pause ambiance" : "Play ambiance"}
-                    >
-                      {ambientPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-                    </button>
-                  )}
-
-                  {/* Ambiance Selector Dropdown */}
+                  
                   <select
                     value={ambientSound}
                     onChange={(e) => {
-                      const sound = e.target.value as "none" | "rainforest" | "library" | "lofi";
+                      const sound = e.target.value as any;
                       handleSelectAmbient(sound);
                     }}
-                    className="text-xs font-bold py-1 px-2 rounded-lg bg-white dark:bg-[#05080f] text-slate-800 dark:text-emerald-400 border border-slate-200 dark:border-white/5 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-[11px]"
+                    className="font-bold py-1.5 pl-3 pr-8 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm cursor-pointer appearance-none"
+                    style={{ backgroundImage: "url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23d97706%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E')", backgroundRepeat: "no-repeat", backgroundPosition: "right .7rem top 50%", backgroundSize: ".65rem auto" }}
                   >
-                    <option value="none">{appLanguage === "en" ? "🤫 Silence" : "🤫 নীরব"}</option>
+                    <option value="none">{appLanguage === "en" ? "🤫 No Music" : "🤫 নীরব"}</option>
                     <option value="rainforest">{appLanguage === "en" ? "🌧️ Rainforest" : "🌧️ বৃষ্টি বন"}</option>
                     <option value="library">{appLanguage === "en" ? "📚 Library" : "📚 লাইব্রেরি"}</option>
-                    <option value="lofi">{appLanguage === "en" ? "🎵 Lo-fi Beats" : "🎵 লো-ফাই বিট"}</option>
+                    <option value="lofi">{appLanguage === "en" ? "🎵 Lofi Beats" : "🎵 লো-ফাই বিট"}</option>
                   </select>
-
-                  {/* Subtle volume control bar if audio is playing */}
-                  {ambientSound !== "none" && (
-                    <div className="flex items-center gap-1.5 pl-1.5 border-l border-slate-200 dark:border-white/5 shrink-0">
-                      <Volume1 className="w-3.5 h-3.5 text-slate-400" />
-                      <input
-                        type="range"
-                        min="0.05"
-                        max="0.4"
-                        step="0.05"
-                        value={ambientVolume}
-                        onChange={(e) => {
-                          const vol = parseFloat(e.target.value);
-                          setAmbientVolume(vol);
-                        }}
-                        className="w-10 accent-emerald-500 cursor-pointer h-1 bg-slate-200 dark:bg-slate-800 rounded appearance-none"
-                        title="Volume"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {/* Study Workspace Sub-tabs */}
-                <div className="flex p-1.5 dark:bg-[#0c1221] bg-slate-100 rounded-xl border dark:border-white/5 border-slate-200 overflow-x-auto w-full sm:w-auto relative">
-                  {([
-                    { id: "feynman", label: t.feynmanDeconstruction, icon: Lightbulb },
-                    { id: "mindmap", label: t.mindmap, icon: Compass },
-                    { id: "flashcards", label: t.flashcards, icon: CheckCircle2 },
-                    { id: "clarifier", label: t.clarifier, icon: HelpCircle },
-                    { id: "dashboard", label: t.dashboard, icon: BarChart2 },
-                    { id: "voiceChat", label: t.voiceChat, icon: Mic }
-                  ] as const).map((tab) => {
-                    const Icon = tab.icon;
-                    const isSelected = activeTab === tab.id;
-                    const isChatTab = tab.id === "clarifier" || tab.id === "voiceChat";
-
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`relative flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold text-xs md:text-sm transition-colors shrink-0 cursor-pointer min-h-[44px] z-10 ${
-                          isSelected
-                            ? "text-emerald-900 dark:text-emerald-100"
-                            : isChatTab
-                              ? "text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
-                              : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
-                        }`}
-                        id={`tab_btn_${tab.id}`}
-                      >
-                        {isSelected && (
-                          <motion.div
-                            layoutId="activeTabIndicator"
-                            className="absolute inset-0 bg-emerald-500/20 dark:bg-emerald-500/30 rounded-lg border border-emerald-500/30 dark:border-emerald-400/30"
-                            initial={false}
-                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                          />
-                        )}
-                        <span className="relative z-10 flex items-center gap-2">
-                          <Icon className={`w-4 h-4 ${isChatTab && !isSelected ? "animate-pulse" : ""}`} />
-                          <span className="hidden md:inline">{tab.label}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
                 </div>
               </div>
             </header>
@@ -3402,6 +3262,52 @@ export default function StudyGuideApp() {
                 )}
 
               </AnimatePresence>
+            </div>
+
+            {/* BOTTOM NAVIGATION DOCK (KIDS UI) */}
+            <div className="bg-white dark:bg-[#080d19] border-t dark:border-white/5 border-slate-200 p-2 md:p-3 shrink-0 flex justify-center z-40 w-full shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
+              <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-1 max-w-full w-full justify-start md:justify-center no-scrollbar px-2">
+                  {([
+                    { id: "feynman", label: t.feynmanDeconstruction, icon: Lightbulb, color: "text-amber-500", bg: "bg-amber-500/10" },
+                    { id: "mindmap", label: t.mindmap, icon: Compass, color: "text-blue-500", bg: "bg-blue-500/10" },
+                    { id: "flashcards", label: t.flashcards, icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+                    { id: "clarifier", label: t.clarifier, icon: HelpCircle, color: "text-purple-500", bg: "bg-purple-500/10" },
+                    { id: "voiceChat", label: t.voiceChat, icon: Mic, color: "text-rose-500", bg: "bg-rose-500/10" },
+                    { id: "dashboard", label: t.dashboard, icon: BarChart2, color: "text-indigo-500", bg: "bg-indigo-500/10" }
+                  ] as const).map((tab) => {
+                    const Icon = tab.icon;
+                    const isSelected = activeTab === tab.id;
+                    const isChatTab = tab.id === "clarifier" || tab.id === "voiceChat";
+
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={`relative flex flex-col items-center justify-center gap-1.5 p-2 sm:px-4 sm:py-3 rounded-[20px] transition-transform active:scale-95 shrink-0 cursor-pointer min-w-[75px] sm:min-w-[100px] z-10 ${
+                          isSelected
+                            ? "text-slate-900 dark:text-white"
+                            : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                        }`}
+                        id={`tab_btn_${tab.id}`}
+                      >
+                        {isSelected && (
+                          <motion.div
+                            layoutId="activeTabIndicatorBottom"
+                            className={`absolute inset-0 ${tab.bg} rounded-[20px] border border-black/5 dark:border-white/5 shadow-sm`}
+                            initial={false}
+                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                          />
+                        )}
+                        <span className="relative z-10 flex flex-col items-center gap-1.5">
+                          <Icon className={`w-6 h-6 sm:w-8 sm:h-8 ${isSelected ? tab.color : ""} ${isChatTab && !isSelected ? "animate-pulse" : ""}`} />
+                          <span className={`text-[10px] sm:text-xs font-bold font-heading ${isSelected ? "opacity-100" : "opacity-70"} text-center leading-tight max-w-[80px]`}>
+                            {tab.label}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+              </div>
             </div>
 
           </div>

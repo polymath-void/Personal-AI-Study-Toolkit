@@ -1,0 +1,8 @@
+{
+  "name": "Study Guide Toolkit",
+  "description": "An intelligent study guide companion that normalizes complex topics into intuitive text explanations, interactive visual mind maps, dynamic follow-up Q&A, and active-recall flashcards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

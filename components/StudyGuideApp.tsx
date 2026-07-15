@@ -11,6 +11,7 @@ import {
   Search, 
   Lightbulb, 
   ChevronRight, 
+  ChevronDown,
   CheckCircle2, 
   HelpCircle as QuestionIcon,
   RotateCw,
@@ -22,6 +23,8 @@ import {
   Volume2,
   VolumeX,
   Bookmark,
+  Pin,
+  PinOff,
   Share2,
   Play,
   Pause,
@@ -40,10 +43,13 @@ import {
   Headphones,
   Music,
   Volume1,
-  Mic
+  Mic,
+  Sun,
+  Moon
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
+import GeminiAssistant from "./GeminiAssistant";
 import {
   ResponsiveContainer,
   BarChart,
@@ -93,6 +99,11 @@ interface StudyGuide {
   topicName: string;
   simplifiedConcept: string;
   analogy: string;
+  chapterDetails?: {
+    fullText: string;
+    briefSummary: string;
+    contextAndFunFacts: string;
+  };
   vocabulary: VocabularyItem[];
   mindmap: MindMapRoot;
   flashcards: Flashcard[];
@@ -110,9 +121,14 @@ interface ChatMessage {
 // Highly polished initial default study guide
 const DEFAULT_STUDY_GUIDE: StudyGuide = {
   id: "default-photosynthesis",
-  topicName: "Photosynthesis (Feynman Edition)",
+  topicName: "Photosynthesis (Study Kit Edition)",
   simplifiedConcept: "Think of photosynthesis as a tiny solar-powered baking kitchen inside plant cells. Instead of baking flour and sugar, this kitchen takes in sunlight energy, water from roots, and carbon dioxide from the air to bake delicious sugar molecules (glucose) that the plant eats to grow. The beautiful byproduct? The kitchen expels oxygen as exhaust waste, which is the exact gas that keeps all animal life breathing!",
   analogy: "A leaf is like an ultra-modern, solar-roofed bakery. The chloroplasts are the kitchens, the chlorophyll pigments are the high-efficiency solar panels capturing sunlight photons, water absorbed by roots is the wet baking batter, and carbon dioxide from the air is the raw flour. The baked cakes are glucose, and oxygen is the packaging waste discharged out of the bakery's double-door air vents (stomata).",
+  chapterDetails: {
+    fullText: "Photosynthesis is the magical way plants cook their own food! Imagine a plant leaf as a tiny, solar-powered kitchen inside plant cells. In this kitchen, instead of baking with flour and sugar, the plant cooks with water from the soil, carbon dioxide from the air, and energy from the bright sun. The plant uses chlorophyll—which act like tiny green solar panels—to trap the warm sunlight. This solar power splits water molecules into hydrogen and oxygen. The plant keeps the hydrogen to mix with carbon dioxide to bake a sweet sugar cake called glucose, which it eats to grow big and strong. But it doesn't need the oxygen! So, the leaf releases oxygen out into the air as 'packaging waste' through tiny mouth-like vents called stomata. This is the very same oxygen that you, me, and all animals breathe every single second to stay alive! Isn't that an amazing magical circle?",
+    briefSummary: "- Plants use sunlight, water, and carbon dioxide to bake glucose (sugar cake).\n- Chlorophyll acts like green solar panels to capture light waves.\n- Water from roots is split apart, releasing fresh oxygen into the air.\n- Stomata are tiny gates on leaves that let bad air in and good breathing air out.\n- Glucose gives plants energy to grow big, while oxygen keeps humans and animals breathing!",
+    contextAndFunFacts: "Long ago, in the 1770s, a scientist named Jan Ingenhousz discovered that plants only release oxygen when they are placed in sunlight! Before this, nobody knew why plants were so important for our air. Also, did you know that without plants doing photosynthesis, there would be no food or breathable air for any creatures on Earth? Plants are the ultimate chefs of the planet!"
+  },
   vocabulary: [
     {
       term: "Chloroplast",
@@ -195,6 +211,11 @@ const DEFAULT_STUDY_GUIDE_BN: StudyGuide = {
   topicName: "সালোকসংশ্লেষণ 🌿 (সহজ ভাষায়)",
   simplifiedConcept: "সালোকসংশ্লেষণকে গাছের পাতার ভেতরের একটি ছোট সৌর-চালিত রান্নাঘর হিসেবে কল্পনা করো! গাছেরা মাটি থেকে মূলের সাহায্যে জল নেয়, বাতাস থেকে কার্বন ডাই অক্সাইড নেয়, আর সূর্যের আলো থেকে শক্তি নিয়ে তাদের এই রান্নাঘরে সুস্বাদু চিনি (গ্লুকোজ) তৈরি করে। এই রান্না করার পর পাতা থেকে অক্সিজেন গ্যাস বাতাসে উড়ে যায়, যা আমাদের শ্বাস নিতে সাহায্য করে! 🌿✨",
   analogy: "একটি সবুজ পাতা হলো একটি আধুনিক সোলার-ছাদওয়ালা কেকের দোকান! পাতার রান্নাঘর হলো ক্লোরোপ্লাস্ট, আর ক্লোরোফিল হলো সৌর প্যানেল যা সূর্যের আলো ধরে রাখে। শিকড় দিয়ে আসা জল হলো কেক বানানোর জল, আর বাতাস থেকে আসা কার্বন ডাই অক্সাইড হলো ময়দা। তৈরি হওয়া মিষ্টি গ্লুকোজ কেক গাছ নিজেই খায়, আর অক্সিজেন হলো ফেলে দেওয়া প্যাকেট যা পাতা তার ছোট ছোট ফুটো (স্টোমাটা) দিয়ে বাইরে বের করে দেয়! 🐻🥞",
+  chapterDetails: {
+    fullText: "সালোকসংশ্লেষণ হলো এমন একটি জাদুকরী প্রক্রিয়া যার মাধ্যমে গাছপালা নিজেদের খাবার নিজেরাই রান্না করে! পাতার কোষে কোষে রয়েছে ছোট্ট সব সৌর-চালিত রান্নাঘর, যাদের ক্লোরোপ্লাস্ট বলা হয়। এই রান্নাঘরে সাধারণ কেক বানানোর ময়দা বা চিনির বদলে ব্যবহার করা হয় শিকড় দিয়ে মাটি থেকে শুষে নেওয়া জল এবং বাতাস থেকে নেওয়া কার্বন ডাই অক্সাইড গ্যাস। পাতার সবুজ কণা বা ক্লোরোফিলগুলো সোলার প্যানেলের মতো কাজ করে সূর্যের আলো বন্দি করে ফেলে। এই সৌরশক্তি দিয়ে জলকে ভেঙে ফেলা হয় এবং চার্জ করা হয় জাদুকরী কেমিক্যাল ব্যাটারি। এরপর গাছ বাতাস থেকে কার্বন ডাই অক্সাইড নিয়ে নিজের জন্য তৈরি করে মিষ্টি গ্লুকোজ চিনি (কেক), যা খেয়ে গাছটি তরতাজা হয়ে বেড়ে ওঠে। কিন্তু রান্না শেষে যে অক্সিজেন গ্যাসটি অবশিষ্ট থাকে, তা গাছের প্রয়োজন হয় না। তাই গাছ তার পাতার নিচের ছোট ফুটো বা স্টোমাটা দিয়ে অক্সিজেন বাতাসে ছেড়ে দেয়। এই অক্সিজেনই আমরা এবং সমস্ত পশুপাখি শ্বাস নেওয়ার সময় গ্রহণ করি! গাছপালা না থাকলে পৃথিবীতে কোনো খাবার বা নিঃশ্বাস নেওয়ার বাতাস থাকত না!",
+    briefSummary: "- গাছ সূর্যের আলো, জল ও কার্বন ডাই অক্সাইড ব্যবহার করে মিষ্টি গ্লুকোজ খাবার রান্না করে।\n- ক্লোরোফিল সোলার প্যানেলের মতো কাজ করে সূর্যের আলো শুষে নেয়।\n- দিনের বেলা জল ভেঙে বাতাসে অক্সিজেন গ্যাস ছেড়ে দেওয়া হয়।\n- পাতার নিচে থাকা স্টোমাটা হলো বাতাস যাতায়াতের জাদুকরী দরজা।\n- এই প্রক্রিয়ায় তৈরি গ্লুকোজ গাছকে বড় করে আর অক্সিজেন আমাদের শ্বাস নিতে সাহায্য করে!",
+    contextAndFunFacts: "১৭৭০-এর দশকে বিজ্ঞানী জ্যান ইনগেনহাউজ প্রথম আবিষ্কার করেন যে গাছ কেবল সূর্যের আলোর উপস্থিতিতেই বাতাস পরিষ্কার করে এবং অক্সিজেন তৈরি করে! তার আগে মানুষ ভাবত গাছ মাটি থেকে সব খাবার পায়। আরেকটি মজার তথ্য: পৃথিবীর সব কয়লা ও তেল আসলে কোটি বছর আগে সালোকসংশ্লেষণ করা উদ্ভিদের দেহাবশেষ থেকেই তৈরি হয়েছে!"
+  },
   vocabulary: [
     {
       term: "ক্লোরোপ্লাস্ট (Chloroplast)",
@@ -273,9 +294,9 @@ const DEFAULT_STUDY_GUIDE_BN: StudyGuide = {
 
 const DICTIONARY = {
   en: {
-    appName: "Study Buddy 🐻✨",
-    subtitle: "Playful study guides & colorful mind maps for kids aged 6-10",
-    engineTitle: "Feynman Learning Engine",
+    appName: "Kids Study Kit 🐻✨",
+    subtitle: "Smart Parenting- Kids Study Kit- AI wrapped",
+    engineTitle: "Smart Kids Study Engine",
     searchPlaceholder: "Search guides by title, tags...",
     all: "All",
     createGuide: "Create New Guide 🚀",
@@ -318,7 +339,7 @@ const DICTIONARY = {
     resetDeck: "Reset Deck 🔄",
     questionSide: "Question Side ❓",
     flipInstruction: "Click anywhere to flip and see simplified answer",
-    answerSide: "Feynman Simplification 💡",
+    answerSide: "Simple Explanation 💡",
     flipBackInstruction: "Click to flip back to question",
     stillReviewing: "Still Reviewing 🔄",
     memorized: "Memorized! ⭐",
@@ -327,12 +348,17 @@ const DICTIONARY = {
     activePedagogyClarifier: "Active Pedagogy Clarifier 💬",
     clearChat: "Clear Chat 🧹",
     tutorDrafting: "Tutor drafting intuitive simplification... ✍️",
-    chatPlaceholder: "Type follow-up study question (e.g., 'What is the role of NADPH?')..."
+    chatPlaceholder: "Type follow-up study question (e.g., 'What is the role of NADPH?')...",
+    parentsCorner: "Parents & Premium 👨‍👩‍👧",
+    parentsCornerSub: "Set weekly goals, view child playtime stats, and configure motivational star rewards!",
+    premiumUpgrade: "Super Kid Premium 👑",
+    unlockPremiumText: "Unlock extra cute animal avatar characters, friendly dino/unicorn voice personalities, and print-ready coloring booklets!",
+    becomeProBtn: "Unlock Premium Access 🚀"
   },
   bn: {
-    appName: "ফেইম্যান স্টাডি বাডি 🐻✨",
-    subtitle: "৬ থেকে ১০ বছরের বাচ্চাদের জন্য পড়ালেখার সহজ ব্যাখ্যা ও রঙিন মাইন্ড ম্যাপ",
-    engineTitle: "সহজ পাঠ ইঞ্জিন",
+    appName: "স্মার্ট কিডস স্টাডি কিট 🐻✨",
+    subtitle: "স্মার্ট প্যারেন্টিং - কিডস স্টাডি কিট - এআই সহযোগে সহজ ও রঙিন মাইন্ড ম্যাপ",
+    engineTitle: "স্মার্ট কিডস স্টাডি ইঞ্জিন",
     searchPlaceholder: "পড়াশোনার টপিক খুঁজুন...",
     all: "সবগুলো",
     createGuide: "নতুন পড়া তৈরি করুন 🚀",
@@ -384,7 +410,12 @@ const DICTIONARY = {
     activePedagogyClarifier: "সহজ ভাষায় পড়া বোঝানো সহকারী 💬",
     clearChat: "আলাপ মুছুন 🧹",
     tutorDrafting: "তোমার জন্য সহজ উত্তর তৈরি করা হচ্ছে... ✍️",
-    chatPlaceholder: "টপিক নিয়ে যেকোনো প্রশ্ন করো (যেমন: 'NADPH কী কাজ করে?')..."
+    chatPlaceholder: "টপিক নিয়ে যেকোনো প্রশ্ন করো (যেমন: 'NADPH কী কাজ করে?')...",
+    parentsCorner: "অভিভাবক কর্নার 👨‍👩‍👧",
+    parentsCornerSub: "বাচ্চার পড়ার লক্ষ্য ও সুস্বাদু উপহার বা জাদুকরী অনুপ্রেরণা বার্তা সেট করুন!",
+    premiumUpgrade: "সুপার কিড প্রিমিয়াম 👑",
+    unlockPremiumText: "সব কিউট এনিম্যাল অবতার, ডাইনোসর ও ইউনিকর্ন ক্যারেক্টার ভয়েস এবং আকর্ষণীয় বুকলেট প্রিন্টিং আনলক করুন!",
+    becomeProBtn: "স্টার প্রো হোন মাত্র ৪৯৯৳/মাসে 🚀"
   }
 };
 
@@ -392,7 +423,7 @@ export default function StudyGuideApp() {
   // Local state management
   const [guides, setGuides] = useState<StudyGuide[]>([]);
   const [activeGuide, setActiveGuide] = useState<StudyGuide | null>(null);
-  const [activeTab, setActiveTab] = useState<"feynman" | "mindmap" | "flashcards" | "clarifier" | "dashboard" | "voiceChat">("feynman");
+  const [activeTab, setActiveTab] = useState<"feynman" | "mindmap" | "flashcards" | "clarifier" | "dashboard" | "voiceChat" | "parents">("feynman");
   
   // App-wide language operating (English vs Bengali)
   const [appLanguage, setAppLanguage] = useState<"en" | "bn">("en");
@@ -422,6 +453,12 @@ export default function StudyGuideApp() {
 
   // Mind map state
   const [selectedNode, setSelectedNode] = useState<{ name: string; description: string } | null>(null);
+  const [mindmapZoom, setMindmapZoom] = useState<number>(1);
+  const [mindmapPanX, setMindmapPanX] = useState<number>(0);
+  const [mindmapPanY, setMindmapPanY] = useState<number>(0);
+  const [mindmapActiveRecall, setMindmapActiveRecall] = useState<boolean>(false);
+  const [mindmapGuessedNodes, setMindmapGuessedNodes] = useState<Record<string, boolean>>({});
+  const [mindmapPulseActive, setMindmapPulseActive] = useState<boolean>(false);
 
   // Follow-up Clarifier Chat State
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -467,14 +504,115 @@ export default function StudyGuideApp() {
 
   // Streak & sharing states
   const [streakCount, setStreakCount] = useState(0);
+  
+  // Kid-friendly and Parent SaaS Customizations
+  const [kidAvatar, setKidAvatar] = useState<"bear" | "bunny" | "dino" | "unicorn" | "panda">("bear");
+  const [isPremium, setIsPremium] = useState(false);
+  const [parentGoalTime, setParentGoalTime] = useState(15); // weekly target in minutes
+  const [parentRewardMsg, setParentRewardMsg] = useState("A delicious ice cream! 🍦");
+  const [parentNoteToChild, setParentNoteToChild] = useState("");
+
+  // Collapsible UI Sections
+  const [isTtsPanelCollapsed, setIsTtsPanelCollapsed] = useState(true);
+  const [isSimplifiedConceptCollapsed, setIsSimplifiedConceptCollapsed] = useState(false);
+  const [isAnalogyCollapsed, setIsAnalogyCollapsed] = useState(false);
+  const [isVocabularyCollapsed, setIsVocabularyCollapsed] = useState(false);
+  const [isAchievementsCollapsed, setIsAchievementsCollapsed] = useState(false);
+  const [isChartsCollapsed, setIsChartsCollapsed] = useState(false);
+  const [isParentSettingsCollapsed, setIsParentSettingsCollapsed] = useState(false);
+
+  // Bookmarks / Pinned guides state
+  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
+
+  // Universal AI API Configuration states
+  const [apiOperator, setApiOperator] = useState<"gemini" | "openai" | "custom">("gemini");
+  const [apiModel, setApiModel] = useState<string>("gemini-3.5-flash");
+  const [apiCustomUrl, setApiCustomUrl] = useState<string>("");
+
+  const handleSetApiOperator = (op: "gemini" | "openai" | "custom") => {
+    setApiOperator(op);
+    localStorage.setItem("feynman_api_operator", op);
+  };
+
+  const handleSetApiModel = (model: string) => {
+    setApiModel(model);
+    localStorage.setItem("feynman_api_model", model);
+  };
+
+  const handleSetApiCustomUrl = (url: string) => {
+    setApiCustomUrl(url);
+    localStorage.setItem("feynman_api_custom_url", url);
+  };
+
+  const toggleBookmark = (id: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    setBookmarkedIds((prev) => {
+      const updated = prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id];
+      localStorage.setItem("feynman_bookmarked_ids", JSON.stringify(updated));
+      console.log("Flexible cloud sync payload placeholder:", { userId: "guest_or_profile_id", bookmarkedIds: updated });
+      return updated;
+    });
+  };
+
+  const getApiConfigForFetch = () => {
+    try {
+      const savedOperator = localStorage.getItem("feynman_api_operator") || "gemini";
+      const savedModel = localStorage.getItem("feynman_api_model") || "gemini-3.5-flash";
+      const savedCustomUrl = localStorage.getItem("feynman_api_custom_url") || "";
+      return {
+        operator: savedOperator,
+        model: savedModel,
+        customUrl: savedCustomUrl
+      };
+    } catch (e) {
+      return { operator: "gemini", model: "gemini-3.5-flash", customUrl: "" };
+    }
+  };
+  const [chapterSubTab, setChapterSubTab] = useState<"text" | "brief" | "backstory">("text");
+  const [focusRulerActive, setFocusRulerActive] = useState(false);
+  const [focusRulerPosition, setFocusRulerPosition] = useState<number | null>(null);
+  const getMascotEmoji = () => {
+    switch (kidAvatar) {
+      case "bunny": return "🐰";
+      case "dino": return "🦖";
+      case "unicorn": return "🦄";
+      case "panda": return "🐼";
+      default: return "🐻";
+    }
+  };
   const [lastStudyDate, setLastStudyDate] = useState<string | null>(null);
   const [isCopied, setIsCopied] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
+
+  const handleToggleTheme = () => {
+    const nextDark = !isDarkMode;
+    setIsDarkMode(nextDark);
+    if (nextDark) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("study_kit_theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("study_kit_theme", "light");
+    }
+  };
 
   // Translation helper
   const t = DICTIONARY[appLanguage];
 
   // Load guides on mount
   useEffect(() => {
+    const savedTheme = localStorage.getItem("study_kit_theme");
+    if (savedTheme === "light") {
+      setIsDarkMode(false);
+      document.documentElement.classList.remove("dark");
+    } else {
+      setIsDarkMode(true);
+      document.documentElement.classList.add("dark");
+    }
+
     const saved = localStorage.getItem("feynman_study_guides");
     const savedCardStatuses = localStorage.getItem("feynman_card_statuses");
     const savedLang = localStorage.getItem("feynman_app_language");
@@ -488,6 +626,9 @@ export default function StudyGuideApp() {
       if (savedLang === "bn") {
         setBengaliVoiceEnabled(true);
       }
+    } else {
+      setAppLanguage("en");
+      initialLang = "en";
     }
 
     if (savedRate) {
@@ -529,9 +670,7 @@ export default function StudyGuideApp() {
       }
     }
     // Set default guide if nothing saved (provide both so kid can play with them)
-    const initialGuides = initialLang === "bn"
-      ? [DEFAULT_STUDY_GUIDE_BN, DEFAULT_STUDY_GUIDE]
-      : [DEFAULT_STUDY_GUIDE, DEFAULT_STUDY_GUIDE_BN];
+    const initialGuides = [DEFAULT_STUDY_GUIDE_BN, DEFAULT_STUDY_GUIDE];
     setGuides(initialGuides);
     setActiveGuide(initialGuides[0]);
 
@@ -560,6 +699,31 @@ export default function StudyGuideApp() {
     } else if (savedStreak) {
       setStreakCount(parseInt(savedStreak, 10) || 0);
     }
+
+    // Load bookmarked guide IDs
+    const savedBookmarks = localStorage.getItem("feynman_bookmarked_ids");
+    if (savedBookmarks) {
+      try {
+        setBookmarkedIds(JSON.parse(savedBookmarks));
+      } catch (e) {
+        console.error("Failed to parse saved bookmarks:", e);
+      }
+    }
+
+    // Load universal AI API Configuration
+    const savedOperator = localStorage.getItem("feynman_api_operator");
+    const savedModel = localStorage.getItem("feynman_api_model");
+    const savedCustomUrl = localStorage.getItem("feynman_api_custom_url");
+
+    if (savedOperator === "gemini" || savedOperator === "openai" || savedOperator === "custom") {
+      setApiOperator(savedOperator as any);
+    }
+    if (savedModel) {
+      setApiModel(savedModel);
+    }
+    if (savedCustomUrl) {
+      setApiCustomUrl(savedCustomUrl);
+    }
   }, []);
 
   // Save guides to localStorage on change
@@ -581,6 +745,95 @@ export default function StudyGuideApp() {
     }, 2800);
     return () => clearInterval(interval);
   }, [isGenerating]);
+
+  const handleVoiceChatSubmit = React.useCallback(async (textToSubmit?: string) => {
+    const text = typeof textToSubmit === "string" ? textToSubmit : voiceChatInput;
+    if (!text.trim()) return;
+
+    const newUserMsg = { role: "user" as const, text };
+    setVoiceChatHistory((prev) => [...prev, newUserMsg]);
+    setVoiceChatInput("");
+    setIsVoiceChatting(true);
+
+    try {
+      const response = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "voiceChat",
+          question: text,
+          history: voiceChatHistory,
+          language: appLanguage,
+          apiConfig: getApiConfigForFetch()
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to get voice chat response");
+      
+      const data = await response.json();
+      setVoiceChatHistory((prev) => [...prev, { role: "bot", text: data.text }]);
+      speakText(data.text);
+    } catch (error) {
+      console.error(error);
+      setVoiceChatHistory((prev) => [
+        ...prev,
+        { role: "bot", text: appLanguage === "en" ? "Oops! Something went wrong. Let's try again!" : "উফ! কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করি!" }
+      ]);
+    } finally {
+      setIsVoiceChatting(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceChatInput, voiceChatHistory, appLanguage]);
+
+  const handleAssistantMessage = async (message: string) => {
+    setIsGenerating(true);
+    try {
+      const response = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "chat",
+          question: message,
+          language: appLanguage,
+          apiConfig: getApiConfigForFetch()
+        }),
+      });
+      const data = await response.json();
+      alert(data.text);
+    } catch (e) {
+      console.error(e);
+      alert("Oops! Something went wrong.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  // Real-time time study seconds accumulator
+  const updateActiveGuideStudyTime = React.useCallback((seconds: number) => {
+    if (!activeGuide) return;
+    setGuides((prev) => {
+      const updated = prev.map((g) => {
+        if (g.id === activeGuide.id) {
+          return {
+            ...g,
+            studySeconds: (g.studySeconds || 0) + seconds
+          };
+        }
+        return g;
+      });
+      localStorage.setItem("feynman_study_guides", JSON.stringify(updated));
+      return updated;
+    });
+    
+    setActiveGuide((prev) => {
+      if (prev && prev.id === activeGuide.id) {
+        return {
+          ...prev,
+          studySeconds: (prev.studySeconds || 0) + seconds
+        };
+      }
+      return prev;
+    });
+  }, [activeGuide]);
 
   // Pomodoro ticking effect
   useEffect(() => {
@@ -668,7 +921,7 @@ export default function StudyGuideApp() {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [timerIsRunning, timerMinutes, timerSeconds, timerMode, activeGuide]);
+  }, [timerIsRunning, timerMinutes, timerSeconds, timerMode, activeGuide, updateActiveGuideStudyTime]);
 
   // Background Ambiance Audio Controller Effect
   useEffect(() => {
@@ -755,7 +1008,7 @@ export default function StudyGuideApp() {
         };
       }
     }
-  }, [appLanguage]);
+  }, [appLanguage, handleVoiceChatSubmit]);
 
   const toggleListening = () => {
     if (isListening) {
@@ -772,45 +1025,7 @@ export default function StudyGuideApp() {
     }
   };
 
-  const handleVoiceChatSubmit = async (textToSubmit?: string) => {
-    const text = typeof textToSubmit === "string" ? textToSubmit : voiceChatInput;
-    if (!text.trim()) return;
-
-    const newUserMsg = { role: "user" as const, text };
-    setVoiceChatHistory((prev) => [...prev, newUserMsg]);
-    setVoiceChatInput("");
-    setIsVoiceChatting(true);
-
-    try {
-      const response = await fetch("/api/gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "voiceChat",
-          question: text,
-          history: voiceChatHistory,
-          language: appLanguage
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to get voice chat response");
-      
-      const data = await response.json();
-      setVoiceChatHistory((prev) => [...prev, { role: "bot", text: data.text }]);
-      speakText(data.text);
-    } catch (error) {
-      console.error(error);
-      setVoiceChatHistory((prev) => [
-        ...prev,
-        { role: "bot", text: appLanguage === "en" ? "Oops! Something went wrong. Let's try again!" : "উফ! কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করি!" }
-      ]);
-    } finally {
-      setIsVoiceChatting(false);
-    }
-  };
-
-  
-  const fetchDidYouKnow = async () => {
+  const fetchDidYouKnow = React.useCallback(async () => {
     if (!activeGuide) return;
     setIsFetchingFact(true);
     setShowDidYouKnow(true);
@@ -821,7 +1036,8 @@ export default function StudyGuideApp() {
         body: JSON.stringify({
           action: "didYouKnow",
           topic: activeGuide.topicName,
-          language: appLanguage
+          language: appLanguage,
+          apiConfig: getApiConfigForFetch()
         }),
       });
 
@@ -836,7 +1052,8 @@ export default function StudyGuideApp() {
     } finally {
       setIsFetchingFact(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGuide, appLanguage]);
 
   useEffect(() => {
     if (activeGuide && activeTab === "flashcards") {
@@ -849,7 +1066,7 @@ export default function StudyGuideApp() {
         fetchDidYouKnow();
       }
     }
-  }, [cardStatus, activeGuide, activeTab, hasShownFactForCurrentDeck]);
+  }, [cardStatus, activeGuide, activeTab, hasShownFactForCurrentDeck, fetchDidYouKnow]);
 
   // Reset flag when guide changes
   useEffect(() => {
@@ -886,36 +1103,8 @@ export default function StudyGuideApp() {
     }
   };
 
-  // Real-time time study seconds accumulator
-  const updateActiveGuideStudyTime = (seconds: number) => {
-    if (!activeGuide) return;
-    setGuides((prev) => {
-      const updated = prev.map((g) => {
-        if (g.id === activeGuide.id) {
-          return {
-            ...g,
-            studySeconds: (g.studySeconds || 0) + seconds
-          };
-        }
-        return g;
-      });
-      localStorage.setItem("feynman_study_guides", JSON.stringify(updated));
-      return updated;
-    });
-    
-    setActiveGuide((prev) => {
-      if (prev && prev.id === activeGuide.id) {
-        return {
-          ...prev,
-          studySeconds: (prev.studySeconds || 0) + seconds
-        };
-      }
-      return prev;
-    });
-  };
-
   // Text to speech with Bengali support
-  const speakText = (text: string) => {
+  function speakText(text: string) {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
 
     try {
@@ -1077,10 +1266,11 @@ export default function StudyGuideApp() {
       setChatHistory([
         {
           sender: "ai",
-          text: `Welcome! I am your dynamic Feynman Study Tutor. I've analyzed **"${activeGuide.topicName}"**.\n\nYou can click on any vocabulary term or mindmap node to understand them, or type any follow-up question below (e.g. *"Explain the Night Shift reaction in detail"* or *"Give me another everyday analogy"*). What can I clear up?`
+          text: `Welcome! I am your dynamic Kids Study Kit Tutor. I've analyzed **"${activeGuide.topicName}"**.\n\nYou can click on any vocabulary term or mindmap node to understand them, or type any follow-up question below (e.g. *"Explain the Night Shift reaction in detail"* or *"Give me another everyday analogy"*). What can I clear up?`
         }
       ]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeGuide]);
 
   // Launch guide generation
@@ -1101,6 +1291,7 @@ export default function StudyGuideApp() {
           topic: newTopic,
           context: extraContext,
           language: appLanguage,
+          apiConfig: getApiConfigForFetch()
         }),
       });
 
@@ -1116,6 +1307,7 @@ export default function StudyGuideApp() {
         topicName: parsedGuide.topicName || newTopic,
         simplifiedConcept: parsedGuide.simplifiedConcept,
         analogy: parsedGuide.analogy,
+        chapterDetails: parsedGuide.chapterDetails,
         vocabulary: parsedGuide.vocabulary || [],
         mindmap: parsedGuide.mindmap || { name: newTopic, description: "Main topic deconstruction" },
         flashcards: parsedGuide.flashcards || [],
@@ -1164,7 +1356,8 @@ export default function StudyGuideApp() {
             mindmap: activeGuide.mindmap
           },
           history: chatHistory.slice(-6), // Send recent message history to keep context
-          language: appLanguage
+          language: appLanguage,
+          apiConfig: getApiConfigForFetch()
         }),
       });
 
@@ -1344,22 +1537,22 @@ export default function StudyGuideApp() {
     <div className="min-h-screen flex flex-col md:flex-row dark:bg-[#060a12] bg-slate-50 transition-colors duration-300 overflow-hidden">
       
       {/* MOBILE HEADER */}
-      <div className="md:hidden flex flex-col p-4 bg-[#090f1a] border-b border-white/5 text-white gap-3">
+      <div className="md:hidden flex flex-col p-4 bg-white dark:bg-[#090f1a] border-b border-slate-200 dark:border-white/5 text-slate-800 dark:text-white gap-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <BookOpen className="w-5 h-5 text-emerald-400" />
-            <span className="font-bold tracking-tight text-sm">{t.appName}</span>
+            <span className="font-bold tracking-tight text-sm text-slate-800 dark:text-white">{t.appName}</span>
           </div>
           <button 
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+            className="p-2 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold"
             id="mobile_sidebar_toggle"
           >
             {sidebarOpen ? "Hide Guides" : "Show Guides"}
           </button>
         </div>
-        <div className="flex items-center justify-between p-2.5 bg-slate-900 rounded-xl border border-white/5">
-          <span className="text-xs font-bold text-slate-400">🗣️ Language / ভাষা:</span>
+        <div className="flex items-center justify-between p-2.5 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-white/5">
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">🗣️ Language / ভাষা:</span>
           <div className="flex gap-2">
             <button
               type="button"
@@ -1368,7 +1561,7 @@ export default function StudyGuideApp() {
                 localStorage.setItem("feynman_app_language", "en");
               }}
               className={`px-4 py-2 rounded-lg text-xs font-bold transition-all min-h-[40px] flex items-center justify-center cursor-pointer ${
-                appLanguage === "en" ? "bg-emerald-600 text-white shadow" : "bg-slate-800 text-slate-300 hover:text-white"
+                appLanguage === "en" ? "bg-emerald-600 text-white shadow" : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white"
               }`}
             >
               🇬🇧 English
@@ -1381,7 +1574,7 @@ export default function StudyGuideApp() {
                 localStorage.setItem("feynman_app_language", "bn");
               }}
               className={`px-4 py-2 rounded-lg text-xs font-bold transition-all min-h-[40px] flex items-center justify-center cursor-pointer ${
-                appLanguage === "bn" ? "bg-emerald-600 text-white shadow" : "bg-slate-800 text-slate-300 hover:text-white"
+                appLanguage === "bn" ? "bg-emerald-600 text-white shadow" : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-white"
               }`}
             >
               🇧🇩 বাংলা
@@ -1493,7 +1686,7 @@ export default function StudyGuideApp() {
                 <button
                   type="submit"
                   disabled={isGenerating || !newTopic.trim()}
-                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white font-semibold text-xs rounded-lg transition-all duration-200 shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-4 px-6 bg-emerald-500 hover:bg-emerald-400 disabled:bg-slate-700 text-white font-bold text-sm rounded-xl transition-all duration-200 shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                   id="submit_generator_btn"
                 >
                   {isGenerating ? (
@@ -1574,70 +1767,163 @@ export default function StudyGuideApp() {
                 </div>
               </div>
 
-              <div className="flex-1 space-y-2 overflow-y-auto pr-1">
+              <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+                {/* Pinned Section */}
                 {(() => {
-                  const filteredGuides = guides.filter((g) => {
-                    const matchesSearch = g.topicName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                      (g.tags && g.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))) ||
-                      g.simplifiedConcept.toLowerCase().includes(searchQuery.toLowerCase());
-                      
-                    const matchesTag = selectedTagFilter === "All" || 
-                      (g.tags && g.tags.includes(selectedTagFilter));
-                      
-                    return matchesSearch && matchesTag;
-                  });
+                  const pinnedGuides = guides.filter(g => bookmarkedIds.includes(g.id));
+                  if (pinnedGuides.length === 0) return null;
 
-                  if (filteredGuides.length === 0) {
-                    return (
-                      <div className="text-center py-8 text-slate-500 text-xs">
-                        No guides found matching filters.
+                  return (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-yellow-500 dark:text-yellow-400 font-mono uppercase tracking-wider px-1">
+                        <Pin className="w-3 h-3 text-yellow-500 fill-yellow-500" />
+                        {appLanguage === "en" ? "Pinned Guides" : "পিন করা গাইডসমূহ"}
                       </div>
-                    );
-                  }
-
-                  return filteredGuides.map((guide) => {
-                    const isActive = activeGuide?.id === guide.id;
-                    return (
-                      <motion.div
-                        key={guide.id}
-                        onClick={() => setActiveGuide(guide)}
-                        whileHover={{ y: -2, scale: 1.015 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                        className={`group flex items-center justify-between p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
-                          isActive
-                            ? "bg-emerald-950/20 border-emerald-500/20 text-emerald-300 shadow-sm"
-                            : "dark:bg-[#0c1221] bg-white border-slate-200 dark:border-white/5 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/10"
-                        }`}
-                        id={`guide_item_${guide.id}`}
-                      >
-                        <div className="flex items-center gap-2.5 overflow-hidden">
-                          <Bookmark className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-emerald-400" : "text-slate-500 group-hover:text-slate-400"}`} />
-                          <div className="truncate text-left">
-                            <p className="text-xs font-semibold truncate leading-tight">{guide.topicName}</p>
-                            <div className="flex items-center gap-1.5 mt-1 overflow-hidden truncate">
-                              <span className="text-[9px] text-slate-500 font-mono shrink-0">{guide.createdAt}</span>
-                              {guide.tags && guide.tags.slice(0, 1).map((t) => (
-                                <span key={t} className="px-1.5 py-0.2 bg-slate-800/60 text-[8px] text-emerald-400 font-mono rounded border border-white/5 truncate max-w-[65px] shrink-0">
-                                  {t}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                        
-                        {guide.id !== "default-photosynthesis" && (
-                          <button
-                            onClick={(e) => handleDeleteGuide(guide.id, e)}
-                            className="p-1.5 rounded-md hover:bg-red-500/10 hover:text-red-400 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                            title="Delete guide"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </motion.div>
-                    );
-                  });
+                      <div className="space-y-1.5">
+                        {pinnedGuides.map((guide) => {
+                          const isActive = activeGuide?.id === guide.id;
+                          return (
+                            <motion.div
+                              key={`pinned-${guide.id}`}
+                              onClick={() => setActiveGuide(guide)}
+                              whileHover={{ y: -2, scale: 1.015 }}
+                              transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                              className={`group flex items-center justify-between p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                                isActive
+                                  ? "bg-emerald-950/20 border-emerald-500/20 text-emerald-300 shadow-sm"
+                                  : "dark:bg-[#0c1221] bg-white border-slate-200 dark:border-white/5 text-slate-700 dark:text-slate-300 hover:border-yellow-500/25"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 overflow-hidden">
+                                <Bookmark className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-emerald-400" : "text-slate-500"}`} />
+                                <div className="truncate text-left">
+                                  <p className="text-xs font-semibold truncate leading-tight">{guide.topicName}</p>
+                                  <div className="flex items-center gap-1.5 mt-1 overflow-hidden truncate">
+                                    <span className="text-[9px] text-slate-500 font-mono shrink-0">{guide.createdAt}</span>
+                                    {guide.tags && guide.tags.slice(0, 1).map((t) => (
+                                      <span key={t} className="px-1.5 py-0.2 bg-slate-800/60 text-[8px] text-emerald-400 font-mono rounded border border-white/5 truncate max-w-[65px] shrink-0">
+                                        {t}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  onClick={(e) => toggleBookmark(guide.id, e)}
+                                  className="p-1.5 rounded-md hover:bg-yellow-500/10 text-yellow-400 transition-colors"
+                                  title="Unpin guide"
+                                >
+                                  <PinOff className="w-3.5 h-3.5" />
+                                </button>
+                                
+                                {guide.id !== "default-photosynthesis" && (
+                                  <button
+                                    onClick={(e) => handleDeleteGuide(guide.id, e)}
+                                    className="p-1.5 rounded-md hover:bg-red-500/10 hover:text-red-400 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title="Delete guide"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
                 })()}
+
+                {/* Normal Section */}
+                <div className="space-y-1.5">
+                  {bookmarkedIds.length > 0 && (
+                    <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 font-mono uppercase tracking-wider px-1">
+                      {appLanguage === "en" ? "All Guides" : "সকল গাইডসমূহ"}
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    {(() => {
+                      const filteredGuides = guides.filter((g) => {
+                        const matchesSearch = g.topicName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          (g.tags && g.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))) ||
+                          g.simplifiedConcept.toLowerCase().includes(searchQuery.toLowerCase());
+                          
+                        const matchesTag = selectedTagFilter === "All" || 
+                          (g.tags && g.tags.includes(selectedTagFilter));
+                          
+                        return matchesSearch && matchesTag;
+                      });
+
+                      if (filteredGuides.length === 0) {
+                        return (
+                          <div className="text-center py-8 text-slate-500 text-xs">
+                            No guides found matching filters.
+                          </div>
+                        );
+                      }
+
+                      return filteredGuides.map((guide) => {
+                        const isActive = activeGuide?.id === guide.id;
+                        const isPinned = bookmarkedIds.includes(guide.id);
+                        return (
+                          <motion.div
+                            key={guide.id}
+                            onClick={() => setActiveGuide(guide)}
+                            whileHover={{ y: -2, scale: 1.015 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                            className={`group flex items-center justify-between p-3 rounded-lg border transition-all duration-200 cursor-pointer ${
+                              isActive
+                                ? "bg-emerald-950/20 border-emerald-500/20 text-emerald-300 shadow-sm"
+                                : "dark:bg-[#0c1221] bg-white border-slate-200 dark:border-white/5 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-white/10"
+                            }`}
+                            id={`guide_item_${guide.id}`}
+                          >
+                            <div className="flex items-center gap-2.5 overflow-hidden">
+                              <Bookmark className={`w-3.5 h-3.5 shrink-0 ${isActive ? "text-emerald-400" : "text-slate-500 group-hover:text-slate-400"}`} />
+                              <div className="truncate text-left">
+                                <p className="text-xs font-semibold truncate leading-tight">{guide.topicName}</p>
+                                <div className="flex items-center gap-1.5 mt-1 overflow-hidden truncate">
+                                  <span className="text-[9px] text-slate-500 font-mono shrink-0">{guide.createdAt}</span>
+                                  {guide.tags && guide.tags.slice(0, 1).map((t) => (
+                                    <span key={t} className="px-1.5 py-0.2 bg-slate-800/60 text-[8px] text-emerald-400 font-mono rounded border border-white/5 truncate max-w-[65px] shrink-0">
+                                      {t}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                onClick={(e) => toggleBookmark(guide.id, e)}
+                                className={`p-1.5 rounded-md hover:bg-yellow-500/10 hover:text-yellow-400 transition-colors ${
+                                  isPinned 
+                                    ? "text-yellow-400 opacity-100" 
+                                    : "text-slate-500 opacity-0 group-hover:opacity-100"
+                                }`}
+                                title={isPinned ? "Unpin guide" : "Pin guide"}
+                              >
+                                <Pin className="w-3.5 h-3.5" />
+                              </button>
+                              
+                              {guide.id !== "default-photosynthesis" && (
+                                <button
+                                  onClick={(e) => handleDeleteGuide(guide.id, e)}
+                                  className="p-1.5 rounded-md hover:bg-red-500/10 hover:text-red-400 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="Delete guide"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </motion.div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
               </div>
             </div>
           </motion.aside>
@@ -1668,7 +1954,7 @@ export default function StudyGuideApp() {
                 </div>
 
                 <div className="space-y-2">
-                  <h3 className="text-lg font-bold text-white font-mono tracking-wide">FEYNMAN SYNTHESIS LIVE</h3>
+                  <h3 className="text-lg font-bold text-white font-mono tracking-wide">SMART KIDS STUDY KIT AI</h3>
                   <p className="text-xs text-slate-400 font-mono tracking-tight uppercase px-4 py-1.5 bg-[#0e172a] rounded-full border border-white/5 inline-block animate-pulse">
                     {stepsText[generationStep]}
                   </p>
@@ -1793,9 +2079,70 @@ export default function StudyGuideApp() {
                     <option value="library">{appLanguage === "en" ? "📚 Library" : "📚 লাইব্রেরি"}</option>
                     <option value="lofi">{appLanguage === "en" ? "🎵 Lofi Beats" : "🎵 লো-ফাই বিট"}</option>
                   </select>
+
+                  <button
+                    onClick={handleToggleTheme}
+                    className="p-2 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-[#0c1221] dark:hover:bg-[#11192e] text-amber-500 dark:text-yellow-400 border border-slate-200 dark:border-white/5 transition-all shadow-sm flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95"
+                    title={isDarkMode ? "Switch to daylight light mode" : "Switch to starry dark mode"}
+                    id="global_theme_toggle_btn"
+                  >
+                    {isDarkMode ? (
+                      <Sun className="w-4 h-4 text-yellow-400" />
+                    ) : (
+                      <Moon className="w-4 h-4 text-indigo-600" />
+                    )}
+                  </button>
                 </div>
               </div>
             </header>
+
+            {/* TOP NAVIGATION DOCK (MOVED TO TOP) */}
+            <div className="bg-white dark:bg-[#080d19] border-b dark:border-white/5 border-slate-200 p-2 md:p-3 shrink-0 flex justify-center z-40 w-full shadow-sm sticky top-0">
+              <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-1 max-w-full w-full justify-start md:justify-center no-scrollbar px-2">
+                  {([
+                    { id: "feynman", label: t.feynmanDeconstruction, icon: Lightbulb, color: "text-amber-500", bg: "bg-amber-500/10" },
+                    { id: "mindmap", label: t.mindmap, icon: Compass, color: "text-blue-500", bg: "bg-blue-500/10" },
+                    { id: "flashcards", label: t.flashcards, icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+                    { id: "clarifier", label: t.clarifier, icon: HelpCircle, color: "text-purple-500", bg: "bg-purple-500/10" },
+                    { id: "voiceChat", label: t.voiceChat, icon: Mic, color: "text-rose-500", bg: "bg-rose-500/10" },
+                    { id: "dashboard", label: t.dashboard, icon: BarChart2, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+                    { id: "parents", label: t.parentsCorner, icon: Sliders, color: "text-pink-500", bg: "bg-pink-500/10" }
+                  ] as const).map((tab) => {
+                    const Icon = tab.icon;
+                    const isSelected = activeTab === tab.id;
+                    const isChatTab = tab.id === "clarifier" || tab.id === "voiceChat";
+
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setActiveTab(tab.id as any)}
+                        className={`relative flex flex-col items-center justify-center gap-1 p-1.5 sm:px-4 sm:py-2.5 rounded-[16px] transition-transform active:scale-95 shrink-0 cursor-pointer min-w-[70px] sm:min-w-[90px] z-10 ${
+                          isSelected
+                            ? "text-slate-900 dark:text-white"
+                            : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                        }`}
+                        id={`tab_btn_${tab.id}`}
+                      >
+                        {isSelected && (
+                          <motion.div
+                            layoutId="activeTabIndicatorTop"
+                            className={`absolute inset-0 ${tab.bg} rounded-[16px] border border-black/5 dark:border-white/5 shadow-sm`}
+                            initial={false}
+                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                          />
+                        )}
+                        <span className="relative z-10 flex flex-col items-center gap-1">
+                          <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${isSelected ? tab.color : ""} ${isChatTab && !isSelected ? "animate-pulse" : ""}`} />
+                          <span className={`text-[9px] sm:text-[11px] font-bold font-heading ${isSelected ? "opacity-100" : "opacity-70"} text-center leading-tight max-w-[80px]`}>
+                            {tab.label}
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
 
             {/* TAB CONTAINER CONTENT */}
             <div className="flex-1 overflow-y-auto p-6 md:p-8">
@@ -1822,186 +2169,429 @@ export default function StudyGuideApp() {
                           <span className="text-xs text-slate-500">• {appLanguage === "en" ? "Super Easy Words" : "সহজ ভাষায় সাজানো"}</span>
                         </div>
                         
-                        {/* Playful TTS Speed and Language Control Panel */}
-                        <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4 bg-slate-50 dark:bg-[#0c1221] p-4 rounded-2xl border border-slate-200 dark:border-white/5 w-full" id="tts_settings_panel">
-                          <div className="flex items-center justify-between gap-3 flex-1">
-                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">🗣️ {t.voicesettings}:</span>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setBengaliVoiceEnabled(false);
-                                  localStorage.setItem("feynman_bengali_voice", "false");
-                                }}
-                                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all min-h-[44px] min-w-[64px] flex items-center justify-center cursor-pointer shadow-sm ${
-                                  !bengaliVoiceEnabled
-                                    ? "bg-emerald-600 text-white"
-                                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border dark:border-white/5 border-slate-200"
-                                }`}
-                              >
-                                English
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setBengaliVoiceEnabled(true);
-                                  localStorage.setItem("feynman_bengali_voice", "true");
-                                }}
-                                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all min-h-[44px] min-w-[64px] flex items-center justify-center cursor-pointer shadow-sm ${
-                                  bengaliVoiceEnabled
-                                    ? "bg-emerald-600 text-white"
-                                    : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border dark:border-white/5 border-slate-200"
-                                }`}
-                              >
-                                বাংলা
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="h-px lg:h-8 w-full lg:w-px bg-slate-200 dark:bg-white/10" />
-
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1 justify-between">
-                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0">{t.playbacksymmetric}:</span>
-                            <div className="flex items-center gap-3 w-full sm:w-auto">
-                              {/* Slow down button */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const newRate = Math.max(0.5, parseFloat((ttsRate - 0.1).toFixed(1)));
-                                  setTtsRate(newRate);
-                                  localStorage.setItem("feynman_tts_rate", newRate.toString());
-                                }}
-                                className="w-11 h-11 rounded-xl bg-white dark:bg-[#131b2e] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center text-lg font-bold shadow-sm transition-all cursor-pointer min-h-[44px] min-w-[44px] border dark:border-white/5 border-slate-200"
-                                title="Slow down speed"
-                              >
-                                🐢
-                              </button>
-
-                              {/* Thicker and larger slider */}
-                              <input
-                                type="range"
-                                min="0.5"
-                                max="2.0"
-                                step="0.1"
-                                value={ttsRate}
-                                onChange={(e) => {
-                                  const rate = parseFloat(e.target.value);
-                                  setTtsRate(rate);
-                                  localStorage.setItem("feynman_tts_rate", rate.toString());
-                                }}
-                                className="flex-1 sm:w-28 accent-emerald-500 cursor-pointer h-3 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none"
-                              />
-
-                              {/* Speed up button */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const newRate = Math.min(2.0, parseFloat((ttsRate + 0.1).toFixed(1)));
-                                  setTtsRate(newRate);
-                                  localStorage.setItem("feynman_tts_rate", newRate.toString());
-                                }}
-                                className="w-11 h-11 rounded-xl bg-white dark:bg-[#131b2e] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center text-lg font-bold shadow-sm transition-all cursor-pointer min-h-[44px] min-w-[44px] border dark:border-white/5 border-slate-200"
-                                title="Speed up speed"
-                              >
-                                🚀
-                              </button>
-
-                              <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 shrink-0 bg-emerald-500/10 px-2.5 py-1 rounded-lg">
-                                {ttsRate.toFixed(1)}x
+                        {/* Playful TTS Speed and Language Control Panel (COLLAPSIBLE) */}
+                        <div className="w-full xl:w-auto min-w-[280px]">
+                          <button
+                            type="button"
+                            onClick={() => setIsTtsPanelCollapsed(!isTtsPanelCollapsed)}
+                            className="w-full flex items-center justify-between px-4 py-2 bg-slate-50 hover:bg-slate-100 dark:bg-[#0c1221] dark:hover:bg-[#131b2e] border border-slate-200 dark:border-white/5 rounded-xl transition-all font-bold text-[11px] text-slate-700 dark:text-slate-300 shadow-sm cursor-pointer"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              <span>🎙️</span>
+                              <span>{appLanguage === "en" ? "Voice Settings" : "কণ্ঠ সেটিংস"}</span>
+                              <span className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-full font-mono font-normal">
+                                {isTtsPanelCollapsed ? (appLanguage === "en" ? "Show" : "দেখুন") : (appLanguage === "en" ? "Hide" : "লুকান")}
                               </span>
-                            </div>
-                          </div>
+                            </span>
+                            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${isTtsPanelCollapsed ? "" : "rotate-180 text-emerald-400"}`} />
+                          </button>
 
-                          <div className="h-px lg:h-8 w-full lg:w-px bg-slate-200 dark:bg-white/10" />
+                          <AnimatePresence initial={false}>
+                            {!isTtsPanelCollapsed && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.25, ease: "easeInOut" }}
+                                className="overflow-hidden mt-3"
+                              >
+                                <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-4 bg-slate-50 dark:bg-[#0c1221] p-4 rounded-2xl border border-slate-200 dark:border-white/5 w-full" id="tts_settings_panel">
+                                  <div className="flex items-center justify-between gap-3 flex-1">
+                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">🗣️ {t.voicesettings}:</span>
+                                    <div className="flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setBengaliVoiceEnabled(false);
+                                          localStorage.setItem("feynman_bengali_voice", "false");
+                                        }}
+                                        className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all min-h-[44px] min-w-[64px] flex items-center justify-center cursor-pointer shadow-sm ${
+                                          !bengaliVoiceEnabled
+                                            ? "bg-emerald-600 text-white"
+                                            : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border dark:border-white/5 border-slate-200"
+                                        }`}
+                                      >
+                                        English
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setBengaliVoiceEnabled(true);
+                                          localStorage.setItem("feynman_bengali_voice", "true");
+                                        }}
+                                        className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all min-h-[44px] min-w-[64px] flex items-center justify-center cursor-pointer shadow-sm ${
+                                          bengaliVoiceEnabled
+                                            ? "bg-emerald-600 text-white"
+                                            : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border dark:border-white/5 border-slate-200"
+                                        }`}
+                                      >
+                                        বাংলা
+                                      </button>
+                                    </div>
+                                  </div>
 
-                          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1 justify-between">
-                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0">🤖 {appLanguage === "en" ? "Voice Character" : "কণ্ঠের চরিত্র"}:</span>
-                            <div className="flex gap-1.5 w-full sm:w-auto">
-                              {([
-                                { id: "teacher", label: appLanguage === "en" ? "Teacher 👩‍🏫" : "শিক্ষক 👩‍🏫" },
-                                { id: "robot", label: appLanguage === "en" ? "Robot 🤖" : "রোবট 🤖" },
-                                { id: "kid", label: appLanguage === "en" ? "Kid 🧒" : "শিশু 🧒" }
-                              ] as const).map((persona) => {
-                                const isSelected = voicePersona === persona.id;
-                                return (
-                                  <button
-                                    key={persona.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setVoicePersona(persona.id);
-                                      localStorage.setItem("feynman_voice_persona", persona.id);
-                                    }}
-                                    className={`px-3 py-2 rounded-xl text-xs font-bold transition-all min-h-[40px] flex items-center justify-center cursor-pointer shadow-sm flex-1 sm:flex-none ${
-                                      isSelected
-                                        ? "bg-emerald-600 text-white"
-                                        : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border dark:border-white/5 border-slate-200"
-                                    }`}
-                                  >
-                                    {persona.label}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
+                                  <div className="h-px lg:h-8 w-full lg:w-px bg-slate-200 dark:bg-white/10" />
 
-                      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6 pb-4 border-b dark:border-white/5 border-slate-100">
-                        <h3 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">{t.simplifiedEssence}</h3>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            onClick={() => speakText(activeGuide.simplifiedConcept)}
-                            className={`px-5 py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-xs md:text-sm font-bold min-h-[44px] ${
-                              isSpeaking && spokenText === activeGuide.simplifiedConcept
-                                ? "bg-red-500 hover:bg-red-600 text-white animate-pulse shadow-md"
-                                : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-md hover:scale-[1.02]"
-                            }`}
-                            title="Listen to simplified concept explanation"
-                          >
-                            {isSpeaking && spokenText === activeGuide.simplifiedConcept ? (
-                              <>
-                                <VolumeX className="w-5 h-5 shrink-0" />
-                                <span>{appLanguage === "en" ? "Stop Speaking 🛑" : "বলা বন্ধ করো 🛑"}</span>
-                              </>
-                            ) : (
-                              <>
-                                <Volume2 className="w-5 h-5 shrink-0" />
-                                <span>{appLanguage === "en" ? "Read Aloud 🔊" : "মুখে শুনো 🔊"}</span>
-                              </>
+                                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1 justify-between">
+                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0">{t.playbacksymmetric}:</span>
+                                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                                      {/* Slow down button */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newRate = Math.max(0.5, parseFloat((ttsRate - 0.1).toFixed(1)));
+                                          setTtsRate(newRate);
+                                          localStorage.setItem("feynman_tts_rate", newRate.toString());
+                                        }}
+                                        className="w-11 h-11 rounded-xl bg-white dark:bg-[#131b2e] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center text-lg font-bold shadow-sm transition-all cursor-pointer min-h-[44px] min-w-[44px] border dark:border-white/5 border-slate-200"
+                                        title="Slow down speed"
+                                      >
+                                        🐢
+                                      </button>
+
+                                      {/* Thicker and larger slider */}
+                                      <input
+                                        type="range"
+                                        min="0.5"
+                                        max="2.0"
+                                        step="0.1"
+                                        value={ttsRate}
+                                        onChange={(e) => {
+                                          const rate = parseFloat(e.target.value);
+                                          setTtsRate(rate);
+                                          localStorage.setItem("feynman_tts_rate", rate.toString());
+                                        }}
+                                        className="flex-1 sm:w-28 accent-emerald-500 cursor-pointer h-3 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none"
+                                      />
+
+                                      {/* Speed up button */}
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const newRate = Math.min(2.0, parseFloat((ttsRate + 0.1).toFixed(1)));
+                                          setTtsRate(newRate);
+                                          localStorage.setItem("feynman_tts_rate", newRate.toString());
+                                        }}
+                                        className="w-11 h-11 rounded-xl bg-white dark:bg-[#131b2e] hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center text-lg font-bold shadow-sm transition-all cursor-pointer min-h-[44px] min-w-[44px] border dark:border-white/5 border-slate-200"
+                                        title="Speed up speed"
+                                      >
+                                        🚀
+                                      </button>
+
+                                      <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 shrink-0 bg-emerald-500/10 px-2.5 py-1 rounded-lg">
+                                        {ttsRate.toFixed(1)}x
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <div className="h-px lg:h-8 w-full lg:w-px bg-slate-200 dark:bg-white/10" />
+
+                                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1 justify-between">
+                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 shrink-0">🤖 {appLanguage === "en" ? "Voice Character" : "কণ্ঠের চরিত্র"}:</span>
+                                    <div className="flex gap-1.5 w-full sm:w-auto">
+                                      {([
+                                        { id: "teacher", label: appLanguage === "en" ? "Teacher 👩‍🏫" : "শিক্ষক 👩‍🏫" },
+                                        { id: "robot", label: appLanguage === "en" ? "Robot 🤖" : "রোবট 🤖" },
+                                        { id: "kid", label: appLanguage === "en" ? "Kid 🧒" : "শিশু 🧒" }
+                                      ] as const).map((persona) => {
+                                        const isSelected = voicePersona === persona.id;
+                                        return (
+                                          <button
+                                            key={persona.id}
+                                            type="button"
+                                            onClick={() => {
+                                              setVoicePersona(persona.id);
+                                              localStorage.setItem("feynman_voice_persona", persona.id);
+                                            }}
+                                            className={`px-3 py-2 rounded-xl text-xs font-bold transition-all min-h-[40px] flex items-center justify-center cursor-pointer shadow-sm flex-1 sm:flex-none ${
+                                              isSelected
+                                                ? "bg-emerald-600 text-white"
+                                                : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white border dark:border-white/5 border-slate-200"
+                                            }`}
+                                          >
+                                            {persona.label}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              </motion.div>
                             )}
-                          </button>
-
-                          <button
-                            onClick={() => {
-                              if (typeof window !== "undefined") {
-                                window.print();
-                              }
-                            }}
-                            className="px-5 py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-xs md:text-sm font-bold min-h-[44px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border dark:border-white/5 border-slate-200 shadow-sm hover:scale-[1.02]"
-                            title="Print study guide as PDF"
-                          >
-                            <Printer className="w-4 h-4 shrink-0" />
-                            <span>{appLanguage === "en" ? "Print Guide" : "পড়া প্রিন্ট করো"}</span>
-                          </button>
+                          </AnimatePresence>
                         </div>
                       </div>
 
-                      <p className="text-sm md:text-md dark:text-slate-300 text-slate-700 leading-relaxed font-sans font-normal whitespace-pre-wrap">
-                        {activeGuide.simplifiedConcept}
-                      </p>
+                      <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 mb-6 pb-4 border-b dark:border-white/5 border-slate-100 cursor-pointer select-none" onClick={() => setIsSimplifiedConceptCollapsed(!isSimplifiedConceptCollapsed)}>
+                        <div className="flex items-center gap-2.5">
+                          <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">🐻 {appLanguage === "en" ? "Simplified Essence & Detailed Dashboard" : "সহজ পাঠ ও অধ্যায় ড্যাশবোর্ড"}</h3>
+                          <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-300 ${isSimplifiedConceptCollapsed ? "" : "rotate-180"}`} />
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                          {(() => {
+                            const currentChapter = activeGuide.chapterDetails || {
+                              fullText: activeGuide.simplifiedConcept,
+                              briefSummary: activeGuide.simplifiedConcept.split("।").filter(s => s.trim()).map(s => `- ${s.trim()}।`).join("\n") || activeGuide.simplifiedConcept.split(".").filter(s => s.trim()).map(s => `- ${s.trim()}.`).join("\n"),
+                              contextAndFunFacts: appLanguage === "en" 
+                                ? `This magical lesson deconstructs the topic "${activeGuide.topicName}" for simple kids understanding. Read through the text verbatim, look at the summary cards, and discover the awesome backstory context!` 
+                                : `এই মজার পড়াটি মূলত "${activeGuide.topicName}" বিষয়টি অত্যন্ত সহজ ও আনন্দের সাথে শেখার জন্য তৈরি করা হয়েছে। মূল টেক্সটটি নিখুঁতভাবে পড়ার পর এর সংক্ষিপ্ত সারমর্ম এবং লেখক বা ইতিহাস সম্পর্কিত চমকপ্রদ তথ্য জেনে নাও!`
+                            };
+                            const textToSpeak = chapterSubTab === "text" ? currentChapter.fullText : chapterSubTab === "brief" ? currentChapter.briefSummary : currentChapter.contextAndFunFacts;
+                            const isCurrentlySpeaking = isSpeaking && spokenText === textToSpeak;
+
+                            return (
+                              <>
+                                <button
+                                  onClick={() => speakText(textToSpeak)}
+                                  className={`px-5 py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-xs md:text-sm font-bold min-h-[44px] ${
+                                    isCurrentlySpeaking
+                                      ? "bg-red-500 hover:bg-red-600 text-white animate-pulse shadow-md"
+                                      : "bg-emerald-600 hover:bg-emerald-500 text-white shadow-md hover:scale-[1.02]"
+                                  }`}
+                                  title="Listen to this section explanation"
+                                >
+                                  {isCurrentlySpeaking ? (
+                                    <>
+                                      <VolumeX className="w-5 h-5 shrink-0" />
+                                      <span>{appLanguage === "en" ? "Stop Speaking 🛑" : "বলা বন্ধ করো 🛑"}</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Volume2 className="w-5 h-5 shrink-0" />
+                                      <span>{appLanguage === "en" ? "Read Aloud 🔊" : "মুখে শুনো 🔊"}</span>
+                                    </>
+                                  )}
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    if (typeof window !== "undefined") {
+                                      window.print();
+                                    }
+                                  }}
+                                  className="px-5 py-3 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 text-xs md:text-sm font-bold min-h-[44px] bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border dark:border-white/5 border-slate-200 shadow-sm hover:scale-[1.02]"
+                                  title="Print study guide as PDF"
+                                >
+                                  <Printer className="w-4 h-4 shrink-0" />
+                                  <span>{appLanguage === "en" ? "Print Guide" : "পড়া প্রিন্ট করো"}</span>
+                                </button>
+                              </>
+                            );
+                          })()}
+                        </div>
+                      </div>
+
+                      <AnimatePresence initial={false}>
+                        {!isSimplifiedConceptCollapsed && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25, ease: "easeInOut" }}
+                            className="overflow-hidden"
+                          >
+                            {(() => {
+                              const currentChapter = activeGuide.chapterDetails || {
+                                fullText: activeGuide.simplifiedConcept,
+                                briefSummary: activeGuide.simplifiedConcept.split("।").filter(s => s.trim()).map(s => `- ${s.trim()}।`).join("\n") || activeGuide.simplifiedConcept.split(".").filter(s => s.trim()).map(s => `- ${s.trim()}.`).join("\n"),
+                                contextAndFunFacts: appLanguage === "en" 
+                                  ? `This magical lesson deconstructs the topic "${activeGuide.topicName}" for simple kids understanding. Read through the text verbatim, look at the summary cards, and discover the awesome backstory context!` 
+                                  : `এই মজার পড়াটি মূলত "${activeGuide.topicName}" বিষয়টি অত্যন্ত সহজ ও আনন্দের সাথে শেখার জন্য তৈরি করা হয়েছে। মূল টেক্সটটি নিখুঁতভাবে পড়ার পর এর সংক্ষিপ্ত সারমর্ম এবং লেখক বা ইতিহাস সম্পর্কিত চমকপ্রদ তথ্য জেনে নাও!`
+                              };
+
+                              return (
+                                <div className="space-y-6 pt-2">
+                                  {/* Sub-tabs selection */}
+                                  <div className="flex border-b border-slate-100 dark:border-white/5 gap-1 md:gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => setChapterSubTab("text")}
+                                      className={`px-3 md:px-5 py-2.5 text-xs md:text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        chapterSubTab === "text"
+                                          ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 font-extrabold"
+                                          : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                      }`}
+                                    >
+                                      📖 {appLanguage === "en" ? "Full Text" : "মূল পড়া (কবিতা/গল্প)"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setChapterSubTab("brief")}
+                                      className={`px-3 md:px-5 py-2.5 text-xs md:text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        chapterSubTab === "brief"
+                                          ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 font-extrabold"
+                                          : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                      }`}
+                                    >
+                                      📝 {appLanguage === "en" ? "Summary Brief" : "সংক্ষিপ্ত সারমর্ম"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setChapterSubTab("backstory")}
+                                      className={`px-3 md:px-5 py-2.5 text-xs md:text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        chapterSubTab === "backstory"
+                                          ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 font-extrabold"
+                                          : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                      }`}
+                                    >
+                                      🎭 {appLanguage === "en" ? "Backstory Context" : "লেখক পরিচিতি ও ইতিহাস"}
+                                    </button>
+                                  </div>
+
+                                  {/* Sub-tab Content Panels */}
+                                  <AnimatePresence mode="wait">
+                                    {chapterSubTab === "text" && (
+                                      <motion.div
+                                        key="chapter-text"
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -10 }}
+                                        transition={{ duration: 0.15 }}
+                                        className="space-y-4"
+                                      >
+                                        {/* Kids Reading tools */}
+                                        <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 dark:bg-[#0c1221] border border-slate-200 dark:border-white/5">
+                                          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                                            📏 {appLanguage === "en" ? "Reading Focus Guide:" : "সহজে পড়ার ম্যাজিক স্কেল:"}
+                                          </span>
+                                          <div className="flex items-center gap-2">
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setFocusRulerActive(!focusRulerActive);
+                                                if (!focusRulerActive) setFocusRulerPosition(0);
+                                              }}
+                                              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                                                focusRulerActive 
+                                                  ? "bg-purple-600 text-white shadow-sm" 
+                                                  : "bg-white dark:bg-[#131b2e] text-slate-700 dark:text-slate-300 border dark:border-white/5 border-slate-200"
+                                              }`}
+                                            >
+                                              {focusRulerActive ? "Ruler ON" : "Ruler OFF"}
+                                            </button>
+                                            {focusRulerActive && (
+                                              <div className="flex items-center gap-1" id="ruler-controls">
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setFocusRulerPosition(prev => prev === null ? 0 : Math.max(0, prev - 1))}
+                                                  className="p-1 w-6 h-6 rounded bg-white dark:bg-[#131b2e] border dark:border-white/5 border-slate-200 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                                                  title="Move focus highlight line up"
+                                                >
+                                                  ▲
+                                                </button>
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setFocusRulerPosition(prev => prev === null ? 0 : prev + 1)}
+                                                  className="p-1 w-6 h-6 rounded bg-white dark:bg-[#131b2e] border dark:border-white/5 border-slate-200 text-xs font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                                                  title="Move focus highlight line down"
+                                                >
+                                                  ▼
+                                                </button>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        <div className="p-6 md:p-8 rounded-2xl bg-slate-50/50 dark:bg-[#070b14]/50 border border-slate-200 dark:border-white/5">
+                                          <div className="space-y-4">
+                                            {currentChapter.fullText.split("\n").map((line, idx) => {
+                                              const isHighlighted = focusRulerActive && focusRulerPosition === idx;
+                                              if (!line.trim()) return <div key={idx} className="h-4" />;
+                                              return (
+                                                <p
+                                                  key={idx}
+                                                  onClick={() => {
+                                                    if (focusRulerActive) setFocusRulerPosition(idx);
+                                                  }}
+                                                  className={`text-lg md:text-xl font-medium tracking-wide leading-relaxed p-3 rounded-xl transition-all duration-200 cursor-pointer ${
+                                                    isHighlighted
+                                                      ? "bg-yellow-100 dark:bg-yellow-950/30 text-slate-950 dark:text-yellow-100 border-l-4 border-yellow-500 font-bold scale-[1.01]"
+                                                      : "text-black dark:text-slate-100 hover:bg-slate-100/50 dark:hover:bg-white/5"
+                                                  }`}
+                                                >
+                                                  {line}
+                                                </p>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      </motion.div>
+                                    )}
+
+                                    {chapterSubTab === "brief" && (
+                                      <motion.div
+                                        key="chapter-brief"
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -10 }}
+                                        transition={{ duration: 0.15 }}
+                                        className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                                      >
+                                        {currentChapter.briefSummary.split("\n").filter(line => line.trim()).map((bullet, idx) => (
+                                          <div key={idx} className="p-5 rounded-2xl border border-slate-200 dark:border-white/5 dark:bg-[#070b13] bg-slate-50/50 text-left flex gap-4 items-start shadow-sm">
+                                            <span className="text-2xl shrink-0 mt-0.5">⭐</span>
+                                            <p className="text-sm md:text-md text-black dark:text-slate-100 font-semibold leading-relaxed whitespace-pre-wrap">
+                                              {bullet.replace(/^-\s*/, "").replace(/^\*\s*/, "")}
+                                            </p>
+                                          </div>
+                                        ))}
+                                      </motion.div>
+                                    )}
+
+                                    {chapterSubTab === "backstory" && (
+                                      <motion.div
+                                        key="chapter-backstory"
+                                        initial={{ opacity: 0, y: 10 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -10 }}
+                                        transition={{ duration: 0.15 }}
+                                        className="p-6 rounded-2xl border border-indigo-500/20 bg-indigo-500/5 dark:bg-indigo-500/10 text-left relative overflow-hidden"
+                                      >
+                                        <div className="absolute right-4 bottom-4 text-8xl opacity-10 select-none">🎭</div>
+                                        <h4 className="text-sm font-bold text-indigo-600 dark:text-indigo-400 mb-3 flex items-center gap-1.5">
+                                          <span>📜 {appLanguage === "en" ? "Author Backstory & Topic Context" : "পটভূমি, ইতিহাস ও লেখক পরিচিতি"}</span>
+                                        </h4>
+                                        <p className="text-sm md:text-md leading-relaxed text-black dark:text-slate-100 font-medium whitespace-pre-wrap">
+                                          {currentChapter.contextAndFunFacts}
+                                        </p>
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </div>
+                              );
+                            })()}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
  
                      {/* Analogy & everyday scenario */}
                      <div className="p-6 md:p-8 rounded-2xl border dark:border-white/5 border-slate-200 dark:bg-[#0a1224] bg-white shadow-xl relative overflow-hidden text-left">
                        <div className="absolute top-0 left-0 w-1.5 h-full bg-yellow-500" />
-                       <div className="flex items-center gap-2 mb-4">
-                         <span className="text-[10px] font-mono bg-yellow-500/15 text-yellow-400 px-2.5 py-1 rounded-full border border-yellow-500/10 font-bold uppercase tracking-widest">
-                           Pedagogical Analogy
-                         </span>
-                         <span className="text-xs text-slate-500">• Anchor of Understanding</span>
+                       
+                       <div 
+                         className="flex justify-between items-center cursor-pointer select-none mb-2 pb-2 border-b border-dashed border-slate-100 dark:border-white/5"
+                         onClick={() => setIsAnalogyCollapsed(!isAnalogyCollapsed)}
+                       >
+                         <div className="flex items-center gap-2">
+                           <span className="text-[10px] font-mono bg-yellow-500/15 text-yellow-400 px-2.5 py-1 rounded-full border border-yellow-500/10 font-bold uppercase tracking-widest">
+                             Pedagogical Analogy
+                           </span>
+                           <span className="text-xs text-slate-500">• Anchor of Understanding</span>
+                         </div>
+                         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isAnalogyCollapsed ? "" : "rotate-180"}`} />
                        </div>
- 
-                       <div className="flex flex-col md:flex-row gap-6 items-start">
+
+                       <AnimatePresence initial={false}>
+                         {!isAnalogyCollapsed && (
+                           <motion.div
+                             initial={{ height: 0, opacity: 0 }}
+                             animate={{ height: "auto", opacity: 1 }}
+                             exit={{ height: 0, opacity: 0 }}
+                             transition={{ duration: 0.25, ease: "easeInOut" }}
+                             className="overflow-hidden"
+                           >
+                             <div className="flex flex-col md:flex-row gap-6 items-start pt-4">
                          <div className="p-3.5 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 shrink-0">
                            <Lightbulb className="w-6 h-6" />
                          </div>
@@ -2030,25 +2620,46 @@ export default function StudyGuideApp() {
                                )}
                              </button>
                            </div>
-                          <p className="text-sm dark:text-slate-300 text-slate-700 leading-relaxed font-sans">
+                          <p className="text-sm dark:text-slate-300 text-black leading-relaxed font-sans font-medium">
                             {activeGuide.analogy}
                           </p>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
                     {/* Jargon Demystification: Interactive Glossary */}
                     <div className="space-y-4 text-left">
-                      <div>
-                        <h3 className="text-sm font-bold text-slate-400 dark:text-slate-400 font-mono uppercase tracking-widest">
-                          {t.demystifyingJargon}
-                        </h3>
-                        <p className="text-xs text-slate-500 mt-1">
-                          {t.demystifyingJargonDesc}
-                        </p>
+                      <div 
+                        className="flex justify-between items-center cursor-pointer select-none pb-2 border-b dark:border-white/5 border-slate-100"
+                        onClick={() => setIsVocabularyCollapsed(!isVocabularyCollapsed)}
+                      >
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-400 dark:text-slate-400 font-mono uppercase tracking-widest flex items-center gap-2">
+                            <span>📚 {t.demystifyingJargon}</span>
+                            <span className="text-[9px] bg-purple-500/10 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded-full font-mono font-normal normal-case">
+                              {isVocabularyCollapsed ? (appLanguage === "en" ? "Show" : "দেখুন") : (appLanguage === "en" ? "Hide" : "লুকান")}
+                            </span>
+                          </h3>
+                          <p className="text-xs text-slate-500 mt-1">
+                            {t.demystifyingJargonDesc}
+                          </p>
+                        </div>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isVocabularyCollapsed ? "" : "rotate-180 text-purple-400"}`} />
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <AnimatePresence initial={false}>
+                        {!isVocabularyCollapsed && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25, ease: "easeInOut" }}
+                            className="overflow-hidden"
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                         {activeGuide.vocabulary && activeGuide.vocabulary.map((vocab) => {
                           const isRevealed = revealedVocab[vocab.term];
                           return (
@@ -2107,9 +2718,12 @@ export default function StudyGuideApp() {
                           );
                         })}
                       </div>
-                    </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
-                    {/* CSS stylesheet injected for print-specific visibility override */}
+              {/* CSS stylesheet injected for print-specific visibility override */}
                     <style dangerouslySetInnerHTML={{ __html: `
                       @media print {
                         body, html, #__next, [data-reactroot], #root {
@@ -2161,7 +2775,7 @@ export default function StudyGuideApp() {
                             📚 Study Guide: {activeGuide.topicName}
                           </h1>
                           <p style={{ fontSize: '12px', color: '#666666', margin: '0' }}>
-                            {appLanguage === "en" ? "Deconstructed with Feynman Method Learning" : "ফেইম্যান সহজ পাঠ পদ্ধতিতে প্রস্তুতকৃত গাইড"}
+                            {appLanguage === "en" ? "Deconstructed with Smart Kids Study Kit" : "স্মার্ট প্যারেন্টিং কিডস স্টাডি কিট (সহজ পাঠ গাইড)"}
                           </p>
                         </div>
                         
@@ -2201,8 +2815,8 @@ export default function StudyGuideApp() {
                         
                         <div style={{ marginTop: '50px', borderTop: '1px solid #dddddd', paddingTop: '15px', textAlign: 'center', fontSize: '11px', color: '#888888' }}>
                           {appLanguage === "en" 
-                            ? "Generated with Study Buddy 🐻✨ — Active Recall & Feynman Method Learning" 
-                            : "ফেইম্যান স্টাডি বাডি 🐻✨ দ্বারা তৈরি — একটি সুন্দর এবং সহজ পড়ালেখা সহকারী"}
+                            ? "Generated with Smart Kids Study Kit 🐻✨ — Active Recall & Simplicity" 
+                            : "স্মার্ট কিডস স্টাডি কিট 🐻✨ দ্বারা তৈরি — একটি সুন্দর এবং সহজ পড়ালেখা সহকারী"}
                         </div>
                       </div>
 
@@ -2214,234 +2828,505 @@ export default function StudyGuideApp() {
                 {activeTab === "mindmap" && (
                   <motion.div
                     key="mindmap"
-                    initial={{ opacity: 0, x: 25 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -25 }}
-                    transition={{ duration: 0.25, ease: "easeInOut" }}
-                    className="max-w-5xl mx-auto space-y-6"
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                    className="max-w-6xl mx-auto space-y-6"
                   >
-                    <div className="text-left">
-                      <span className="text-[10px] font-mono bg-cyan-500/10 text-cyan-400 px-2.5 py-1 rounded-full border border-cyan-500/10 font-bold uppercase tracking-widest">
-                        Visual Concept Map
-                      </span>
-                      <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight mt-2.5">Interactive Multi-Level Mind Map</h3>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Interact with the nodes to visually map out components. Click any node to open its plain-English take-away.
-                      </p>
+                    {/* Header Intro and Dynamic Controls */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-[#080d19] p-5 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm">
+                      <div className="text-left">
+                        <span className="text-[10px] font-mono bg-cyan-500/10 text-cyan-400 px-2.5 py-1 rounded-full border border-cyan-500/10 font-bold uppercase tracking-widest">
+                          {appLanguage === "en" ? " Whiteboard Studio" : " হোয়াইটবোর্ড স্টুডিও"}
+                        </span>
+                        <h3 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight mt-2.5 flex items-center gap-2">
+                          {appLanguage === "en" ? "Interactive Mind Map" : "ইন্টারেক্টিভ মাইন্ড ম্যাপ"}
+                          <Sparkles className="w-4 h-4 text-amber-400 animate-bounce" />
+                        </h3>
+                        <p className="text-xs text-slate-500 mt-1">
+                          {appLanguage === "en" ? "Drag to pan, scroll to zoom. Solve riddles & trace magic flows!" : "টেনে প্যান করুন, জুম করতে মাউস ঘুরান। ধাঁধা সমাধান করুন ও জাদুকরী প্রবাহ দেখুন!"}
+                        </p>
+                      </div>
+
+                      {/* Whiteboard Controls toolbar */}
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        {/* Zoom buttons */}
+                        <div className="flex items-center bg-slate-100 dark:bg-[#0c1221] p-1 rounded-xl border border-slate-200 dark:border-white/5">
+                          <button
+                            onClick={() => setMindmapZoom(prev => Math.min(prev + 0.15, 2.0))}
+                            className="p-1.5 rounded-lg text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/5 text-xs font-bold cursor-pointer transition-colors"
+                            title="Zoom In"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="text-[10px] font-mono px-2 text-slate-500 dark:text-slate-400 font-bold">
+                            {Math.round(mindmapZoom * 100)}%
+                          </span>
+                          <button
+                            onClick={() => setMindmapZoom(prev => Math.max(prev - 0.15, 0.5))}
+                            className="p-1.5 rounded-lg text-slate-500 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-white/5 text-xs font-bold cursor-pointer transition-colors"
+                            title="Zoom Out"
+                          >
+                            <span className="block w-3.5 h-0.5 bg-current mx-auto" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setMindmapZoom(1);
+                              setMindmapPanX(0);
+                              setMindmapPanY(0);
+                            }}
+                            className="p-1.5 ml-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer"
+                            title="Reset Position"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        {/* Magic flow pulse trigger */}
+                        <button
+                          onClick={() => {
+                            setMindmapPulseActive(true);
+                            setTimeout(() => setMindmapPulseActive(false), 3000);
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-sm ${
+                            mindmapPulseActive
+                              ? "bg-emerald-500 text-white border-emerald-400 animate-pulse"
+                              : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
+                          }`}
+                          title="Trigger a crawl of light along the links"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>{appLanguage === "en" ? "Magic Flow ✨" : "জাদুকরী প্রবাহ ✨"}</span>
+                        </button>
+
+                        {/* Active Recall Game Toggle */}
+                        <button
+                          onClick={() => {
+                            setMindmapActiveRecall(!mindmapActiveRecall);
+                            setMindmapGuessedNodes({});
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-sm ${
+                            mindmapActiveRecall
+                              ? "bg-cyan-500 text-white border-cyan-400"
+                              : "bg-cyan-500/10 text-cyan-400 border-cyan-500/20 hover:bg-cyan-500/20"
+                          }`}
+                        >
+                          <span>🧩 {appLanguage === "en" ? "Riddle Mode" : "ধাঁধা গেম"}</span>
+                        </button>
+                      </div>
                     </div>
 
                     {/* SVG canvas rendering layout */}
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
                       
                       {/* Visual Graph panel */}
-                      <div className="lg:col-span-8 p-6 rounded-2xl border dark:border-white/5 border-slate-200 dark:bg-[#070b14] bg-[#fafbfc] flex items-center justify-center min-h-[420px] shadow-inner relative overflow-hidden">
+                      <div className="lg:col-span-8 p-4 rounded-2xl border dark:border-white/5 border-slate-200 dark:bg-[#070b14] bg-[#fafbfc] flex flex-col min-h-[460px] shadow-inner relative overflow-hidden group select-none">
                         
-                        <div className="absolute inset-0 dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px] opacity-30" />
+                        {/* Interactive Drag Hint */}
+                        <div className="absolute top-3 left-3 z-20 pointer-events-none flex items-center gap-1.5 bg-slate-900/60 backdrop-blur-sm px-2.5 py-1 rounded-full text-[9px] text-slate-300 font-mono tracking-wider">
+                          <Compass className="w-3 h-3 text-cyan-400 animate-spin" />
+                          <span>{appLanguage === "en" ? "WHITEBOARD BOARD: CLICK & DRAG TO PAN" : "হোয়াইটবোর্ড: টেনে প্যান করুন"}</span>
+                        </div>
+
+                        {/* Whiteboard Background Grid */}
+                        <div className="absolute inset-0 dark:bg-[radial-gradient(#1e293b_1px,transparent_1px)] bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:16px_16px] opacity-35" />
 
                         {/* Node Tree Rendered elegantly as SVG */}
-                        <svg className="w-full h-[400px] relative z-10" viewBox="0 0 600 400">
-                          {/* Symmetrical coordinates calculated precisely */}
-                          {/* Central Root: X:300, Y:60 */}
-                          {/* Branches: N children. Let's list children. We support up to 3 branches */}
-                          {(() => {
-                            const rootNode = activeGuide.mindmap;
-                            const categories = rootNode.children || [];
-                            const rootX = 300;
-                            const rootY = 50;
-                            
-                            return (
-                              <g>
-                                {/* Draw Connections first */}
-                                {categories.map((cat, idx) => {
-                                  // Spread children symmetrically across X
-                                  const gapX = 300 / (categories.length + 1);
-                                  const catX = gapX * (idx + 1) + 150;
-                                  const catY = 180;
+                        <svg className="w-full h-[410px] relative z-10 overflow-hidden cursor-grab active:cursor-grabbing" viewBox="0 0 600 400">
+                          <defs>
+                            {/* Radial Glow Filters for premium design */}
+                            <filter id="glow-emerald" x="-20%" y="-20%" width="140%" height="140%">
+                              <feGaussianBlur stdDeviation="5" result="blur" />
+                              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                            </filter>
+                            <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+                              <feGaussianBlur stdDeviation="4" result="blur" />
+                              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                            </filter>
+                            <filter id="glow-amber" x="-20%" y="-20%" width="140%" height="140%">
+                              <feGaussianBlur stdDeviation="4" result="blur" />
+                              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                            </filter>
+                          </defs>
 
-                                  // Draw curved lines from Root to Categories
-                                  const controlY = (rootY + catY) / 2;
-                                  const pathD = `M ${rootX} ${rootY} C ${rootX} ${controlY}, ${catX} ${controlY}, ${catX} ${catY}`;
+                          {/* DRAGGABLE ROOT CANVAS GROUP */}
+                          <motion.g
+                            drag
+                            dragMomentum={false}
+                            dragElastic={0.05}
+                            animate={{ scale: mindmapZoom, x: mindmapPanX, y: mindmapPanY }}
+                            transition={{ type: "spring", stiffness: 220, damping: 24 }}
+                          >
+                            {(() => {
+                              const rootNode = activeGuide.mindmap;
+                              const categories = rootNode.children || [];
+                              const rootX = 300;
+                              const rootY = 55;
+                              
+                              return (
+                                <g>
+                                  {/* Draw CONNECTIONS first */}
+                                  {categories.map((cat, idx) => {
+                                    // Symmetrical spread
+                                    const gapX = 320 / (categories.length + 1 || 2);
+                                    const catX = gapX * (idx + 1) + 140;
+                                    const catY = 185;
 
-                                  return (
-                                    <g key={`link-cat-${idx}`}>
-                                      <path
-                                        d={pathD}
-                                        fill="none"
-                                        stroke="rgba(16, 185, 129, 0.25)"
-                                        strokeWidth="2.5"
-                                        strokeDasharray="4 4"
-                                      />
-                                      {/* Sub-connections to Details */}
-                                      {(cat.children || []).map((det, detIdx) => {
-                                        const numDetails = cat.children?.length || 1;
-                                        const detGap = 130 / (numDetails + 1 || 2);
-                                        const detX = catX - 65 + detGap * (detIdx + 1);
-                                        const detY = 320;
+                                    // Curved line from Root to Category
+                                    const controlY1 = (rootY + catY) / 2;
+                                    const pathD = `M ${rootX} ${rootY} C ${rootX} ${controlY1}, ${catX} ${controlY1}, ${catX} ${catY}`;
 
-                                        const subPathD = `M ${catX} ${catY} C ${catX} ${(catY + detY) / 2}, ${detX} ${(catY + detY) / 2}, ${detX} ${detY}`;
-
-                                        return (
-                                          <path
-                                            key={`link-det-${idx}-${detIdx}`}
-                                            d={subPathD}
-                                            fill="none"
-                                            stroke="rgba(6, 182, 212, 0.2)"
-                                            strokeWidth="2"
-                                          />
-                                        );
-                                      })}
-                                    </g>
-                                  );
-                                })}
-
-                                {/* Draw Root Node */}
-                                <g 
-                                  className="cursor-pointer group"
-                                  onClick={() => setSelectedNode({ name: rootNode.name, description: rootNode.description })}
-                                >
-                                  <circle
-                                    cx={rootX}
-                                    cy={rootY}
-                                    r="22"
-                                    className={`transition-all duration-200 fill-[#0c1c1f] stroke-[2.5] ${
-                                      selectedNode?.name === rootNode.name 
-                                        ? "stroke-emerald-400 shadow-lg r-24" 
-                                        : "stroke-emerald-600 group-hover:stroke-emerald-400"
-                                    }`}
-                                  />
-                                  <text
-                                    x={rootX}
-                                    y={rootY + 5}
-                                    textAnchor="middle"
-                                    className="font-mono text-[9px] font-bold fill-emerald-400 pointer-events-none uppercase tracking-wide"
-                                  >
-                                    ROOT
-                                  </text>
-                                  <text
-                                    x={rootX}
-                                    y={rootY - 28}
-                                    textAnchor="middle"
-                                    className="font-sans text-[11px] font-bold fill-slate-800 dark:fill-white pointer-events-none"
-                                  >
-                                    {rootNode.name}
-                                  </text>
-                                </g>
-
-                                {/* Draw Categories */}
-                                {categories.map((cat, idx) => {
-                                  const gapX = 300 / (categories.length + 1);
-                                  const catX = gapX * (idx + 1) + 150;
-                                  const catY = 180;
-                                  const isSelected = selectedNode?.name === cat.name;
-
-                                  return (
-                                    <g key={`g-cat-${idx}`}>
-                                      {/* Sub-node circle */}
-                                      <g 
-                                        className="cursor-pointer group"
-                                        onClick={() => setSelectedNode({ name: cat.name, description: cat.description })}
-                                      >
-                                        <circle
-                                          cx={catX}
-                                          cy={catY}
-                                          r="16"
-                                          className={`transition-all duration-200 fill-[#0c182d] stroke-2 ${
-                                            isSelected 
-                                              ? "stroke-yellow-400 fill-[#162744]" 
-                                              : "stroke-emerald-500 group-hover:stroke-yellow-500"
-                                          }`}
+                                    return (
+                                      <g key={`link-cat-${idx}`}>
+                                        {/* Background curve line */}
+                                        <path
+                                          d={pathD}
+                                          fill="none"
+                                          stroke="rgba(16, 185, 129, 0.18)"
+                                          strokeWidth="3.5"
                                         />
-                                        <text
-                                          x={catX}
-                                          y={catY + 3}
-                                          textAnchor="middle"
-                                          className="font-mono text-[8px] font-bold fill-emerald-300 pointer-events-none"
-                                        >
-                                          CAT
-                                        </text>
-                                        <text
-                                          x={catX}
-                                          y={catY - 22}
-                                          textAnchor="middle"
-                                          className="font-sans text-[10px] font-semibold fill-slate-700 dark:fill-slate-200 pointer-events-none"
-                                        >
-                                          {cat.name.length > 20 ? `${cat.name.substring(0, 18)}...` : cat.name}
-                                        </text>
+
+                                        {/* Flow pulse light effect */}
+                                        {(mindmapPulseActive || isSpeaking) && (
+                                          <motion.path
+                                            d={pathD}
+                                            fill="none"
+                                            stroke="#10b981"
+                                            strokeWidth="3.5"
+                                            strokeLinecap="round"
+                                            strokeDasharray="12 20"
+                                            animate={{ strokeDashoffset: [0, -64] }}
+                                            transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
+                                          />
+                                        )}
+
+                                        {/* Sub-connections to details */}
+                                        {(cat.children || []).map((det, detIdx) => {
+                                          const numDetails = cat.children?.length || 1;
+                                          const detGap = 135 / (numDetails + 1 || 2);
+                                          const detX = catX - 65 + detGap * (detIdx + 1);
+                                          const detY = 325;
+
+                                          const subControlY = (catY + detY) / 2;
+                                          const subPathD = `M ${catX} ${catY} C ${catX} ${subControlY}, ${detX} ${subControlY}, ${detX} ${detY}`;
+
+                                          return (
+                                            <g key={`sublink-${idx}-${detIdx}`}>
+                                              {/* Background detail link line */}
+                                              <path
+                                                d={subPathD}
+                                                fill="none"
+                                                stroke="rgba(6, 182, 212, 0.12)"
+                                                strokeWidth="2.5"
+                                              />
+
+                                              {/* Detail flow pulse light effect */}
+                                              {(mindmapPulseActive || isSpeaking) && (
+                                                <motion.path
+                                                  d={subPathD}
+                                                  fill="none"
+                                                  stroke="#06b6d4"
+                                                  strokeWidth="2.5"
+                                                  strokeLinecap="round"
+                                                  strokeDasharray="8 16"
+                                                  animate={{ strokeDashoffset: [0, -48] }}
+                                                  transition={{ repeat: Infinity, duration: 1.2, ease: "linear" }}
+                                                />
+                                              )}
+                                            </g>
+                                          );
+                                        })}
                                       </g>
+                                    );
+                                  })}
 
-                                      {/* Draw Details under each Category */}
-                                      {(cat.children || []).map((det, detIdx) => {
-                                        const numDetails = cat.children?.length || 1;
-                                        const detGap = 130 / (numDetails + 1 || 2);
-                                        const detX = catX - 65 + detGap * (detIdx + 1);
-                                        const detY = 320;
-                                        const isDetSelected = selectedNode?.name === det.name;
+                                  {/* ROOT NODE */}
+                                  <motion.g 
+                                    className="cursor-pointer"
+                                    onClick={() => setSelectedNode({ name: rootNode.name, description: rootNode.description })}
+                                    whileHover={{ scale: 1.12 }}
+                                    transition={{ type: "spring", stiffness: 300, damping: 15 }}
+                                  >
+                                    {/* Orbit Spinning outer ring */}
+                                    <motion.circle
+                                      cx={rootX}
+                                      cy={rootY}
+                                      r="34"
+                                      fill="none"
+                                      stroke="rgba(16, 185, 129, 0.25)"
+                                      strokeWidth="1.5"
+                                      strokeDasharray="6 4"
+                                      animate={{ rotate: 360 }}
+                                      transition={{ repeat: Infinity, duration: 12, ease: "linear" }}
+                                    />
+                                    {/* Central Core Globe */}
+                                    <circle
+                                      cx={rootX}
+                                      cy={rootY}
+                                      r="24"
+                                      filter="url(#glow-emerald)"
+                                      className={`transition-all duration-300 fill-emerald-950 stroke-[3.5] ${
+                                        selectedNode?.name === rootNode.name 
+                                          ? "stroke-emerald-400" 
+                                          : "stroke-emerald-600/80 hover:stroke-emerald-400"
+                                      }`}
+                                    />
+                                    {/* Star Emoji inside Root */}
+                                    <text
+                                      x={rootX}
+                                      y={rootY + 5}
+                                      textAnchor="middle"
+                                      className="text-xs pointer-events-none select-none"
+                                    >
+                                      👑
+                                    </text>
+                                    {/* Node Label */}
+                                    <text
+                                      x={rootX}
+                                      y={rootY - 40}
+                                      textAnchor="middle"
+                                      className="font-sans text-[12px] font-extrabold fill-slate-800 dark:fill-white pointer-events-none drop-shadow-sm select-none"
+                                    >
+                                      {rootNode.name}
+                                    </text>
+                                  </motion.g>
 
-                                        return (
-                                          <g 
-                                            key={`g-det-${idx}-${detIdx}`}
-                                            className="cursor-pointer group"
-                                            onClick={() => setSelectedNode({ name: det.name, description: det.description })}
-                                          >
-                                            <circle
-                                              cx={detX}
-                                              cy={detY}
-                                              r="11"
-                                              className={`transition-all duration-200 fill-[#0e172a] stroke-1.5 ${
-                                                isDetSelected 
-                                                  ? "stroke-cyan-400 fill-[#12243d]" 
-                                                  : "stroke-cyan-600 group-hover:stroke-cyan-300"
-                                              }`}
+                                  {/* CATEGORIES */}
+                                  {categories.map((cat, idx) => {
+                                    const gapX = 320 / (categories.length + 1 || 2);
+                                    const catX = gapX * (idx + 1) + 140;
+                                    const catY = 185;
+                                    const isSelected = selectedNode?.name === cat.name;
+                                    const isGuessed = !mindmapActiveRecall || mindmapGuessedNodes[cat.name];
+
+                                    return (
+                                      <g key={`g-cat-${idx}`}>
+                                        {/* Sub-node circle */}
+                                        <motion.g 
+                                          className="cursor-pointer"
+                                          onClick={() => {
+                                            setSelectedNode({ name: cat.name, description: cat.description });
+                                            if (mindmapActiveRecall && !mindmapGuessedNodes[cat.name]) {
+                                              setMindmapGuessedNodes(prev => ({ ...prev, [cat.name]: true }));
+                                              confetti({ particleCount: 25, spread: 40, origin: { y: 0.6 } });
+                                            }
+                                          }}
+                                          whileHover={{ scale: 1.15 }}
+                                          initial={{ scale: 0, opacity: 0 }}
+                                          animate={{ scale: 1, opacity: 1 }}
+                                          transition={{ type: "spring", stiffness: 200, damping: 15, delay: idx * 0.1 }}
+                                        >
+                                          {/* Pulse Ring when selected */}
+                                          {isSelected && (
+                                            <motion.circle
+                                              cx={catX}
+                                              cy={catY}
+                                              r="26"
+                                              fill="none"
+                                              stroke="#eab308"
+                                              strokeWidth="1.5"
+                                              animate={{ scale: [0.95, 1.25, 0.95], opacity: [0.9, 0.1, 0.9] }}
+                                              transition={{ repeat: Infinity, duration: 2.0 }}
                                             />
-                                            <text
-                                              x={detX}
-                                              y={detY - 16}
-                                              textAnchor="middle"
-                                              className="font-sans text-[9px] fill-slate-500 dark:fill-slate-300 pointer-events-none font-medium"
+                                          )}
+
+                                          <circle
+                                            cx={catX}
+                                            cy={catY}
+                                            r="18"
+                                            filter="url(#glow-amber)"
+                                            className={`transition-all duration-300 fill-amber-950 stroke-3 ${
+                                              isSelected 
+                                                ? "stroke-yellow-400" 
+                                                : "stroke-amber-500/80 hover:stroke-yellow-500"
+                                            }`}
+                                          />
+                                          {/* Emoji inside Category Node */}
+                                          <text
+                                            x={catX}
+                                            y={catY + 4}
+                                            textAnchor="middle"
+                                            className="text-[10px] pointer-events-none select-none"
+                                          >
+                                            {idx === 0 ? "📕" : idx === 1 ? "💡" : "🚀"}
+                                          </text>
+
+                                          {/* Node Text Label (Guarded by game mode) */}
+                                          <text
+                                            x={catX}
+                                            y={catY - 26}
+                                            textAnchor="middle"
+                                            className={`font-sans text-[10px] font-bold pointer-events-none select-none ${
+                                              isGuessed ? "fill-slate-800 dark:fill-slate-200" : "fill-cyan-500 dark:fill-cyan-400 font-mono italic"
+                                            }`}
+                                          >
+                                            {isGuessed 
+                                              ? (cat.name.length > 18 ? `${cat.name.substring(0, 16)}...` : cat.name)
+                                              : "??? 🧩"
+                                            }
+                                          </text>
+                                        </motion.g>
+
+                                        {/* DETAIL FACT NODES */}
+                                        {(cat.children || []).map((det, detIdx) => {
+                                          const numDetails = cat.children?.length || 1;
+                                          const detGap = 135 / (numDetails + 1 || 2);
+                                          const detX = catX - 65 + detGap * (detIdx + 1);
+                                          const detY = 325;
+                                          const isDetSelected = selectedNode?.name === det.name;
+                                          const isDetGuessed = !mindmapActiveRecall || mindmapGuessedNodes[det.name];
+
+                                          return (
+                                            <motion.g 
+                                              key={`g-det-${idx}-${detIdx}`}
+                                              className="cursor-pointer"
+                                              onClick={() => {
+                                                setSelectedNode({ name: det.name, description: det.description });
+                                                if (mindmapActiveRecall && !mindmapGuessedNodes[det.name]) {
+                                                  setMindmapGuessedNodes(prev => ({ ...prev, [det.name]: true }));
+                                                  confetti({ particleCount: 15, spread: 30, origin: { y: 0.6 } });
+                                                }
+                                              }}
+                                              whileHover={{ scale: 1.25 }}
+                                              initial={{ scale: 0, opacity: 0 }}
+                                              animate={{ scale: 1, opacity: 1 }}
+                                              transition={{ type: "spring", stiffness: 180, damping: 14, delay: (idx * 0.15) + (detIdx * 0.08) }}
                                             >
-                                              {det.name.length > 15 ? `${det.name.substring(0, 13)}...` : det.name}
-                                            </text>
-                                          </g>
-                                        );
-                                      })}
-                                    </g>
-                                  );
-                                })}
-                              </g>
-                            );
-                          })()}
+                                              {/* Floating orbit path ring if selected */}
+                                              {isDetSelected && (
+                                                <circle
+                                                  cx={detX}
+                                                  cy={detY}
+                                                  r="17"
+                                                  fill="none"
+                                                  stroke="#22d3ee"
+                                                  strokeWidth="1"
+                                                  strokeDasharray="4 2"
+                                                  className="animate-spin"
+                                                />
+                                              )}
+
+                                              <circle
+                                                cx={detX}
+                                                cy={detY}
+                                                r="11"
+                                                filter="url(#glow-cyan)"
+                                                className={`transition-all duration-300 fill-cyan-950 stroke-[2] ${
+                                                  isDetSelected 
+                                                    ? "stroke-cyan-400" 
+                                                    : "stroke-cyan-600/80 hover:stroke-cyan-400"
+                                                }`}
+                                              />
+                                              <text
+                                                cx={detX}
+                                                cy={detY}
+                                                x={detX}
+                                                y={detY + 3.5}
+                                                textAnchor="middle"
+                                                className="text-[8px] pointer-events-none select-none"
+                                              >
+                                                ✨
+                                              </text>
+                                              <text
+                                                x={detX}
+                                                y={detY + 24}
+                                                textAnchor="middle"
+                                                className={`font-sans text-[8px] font-semibold pointer-events-none select-none ${
+                                                  isDetGuessed ? "fill-slate-500 dark:fill-slate-300" : "fill-cyan-500 font-mono animate-pulse"
+                                                }`}
+                                              >
+                                                {isDetGuessed 
+                                                  ? (det.name.length > 15 ? `${det.name.substring(0, 13)}...` : det.name)
+                                                  : "???"
+                                                }
+                                              </text>
+                                            </motion.g>
+                                          );
+                                        })}
+                                      </g>
+                                    );
+                                  })}
+                                </g>
+                              );
+                            })()}
+                          </motion.g>
                         </svg>
                       </div>
 
                       {/* Detail Inspector Sidebar */}
                       <div className="lg:col-span-4 flex flex-col justify-between p-6 rounded-2xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white shadow-xl text-left">
                         <div className="space-y-4">
-                          <span className="text-[10px] font-mono text-cyan-500 dark:text-cyan-400 font-bold uppercase tracking-widest">
-                            Node Inspector
-                          </span>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-mono text-cyan-500 dark:text-cyan-400 font-bold uppercase tracking-widest">
+                              {appLanguage === "en" ? "Node Decoder 🔍" : "নোড ডিকোডার 🔍"}
+                            </span>
+                            
+                            {/* Star solver badge for game mode */}
+                            {mindmapActiveRecall && (
+                              <div className="flex items-center gap-1 text-[10px] bg-cyan-500/10 text-cyan-400 px-2 py-0.5 rounded-full font-mono font-bold">
+                                <span>⭐ Solve Tracker:</span>
+                                <span>{Object.keys(mindmapGuessedNodes).length} Solved</span>
+                              </div>
+                            )}
+                          </div>
 
                           {selectedNode ? (
-                            <div className="space-y-3">
-                              <h4 className="text-md font-bold text-slate-800 dark:text-white tracking-tight">
-                                {selectedNode.name}
-                              </h4>
+                            <motion.div 
+                              key={selectedNode.name}
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="space-y-4 bg-slate-50 dark:bg-[#0b1326] p-4 rounded-xl border border-slate-200/50 dark:border-white/5 relative overflow-hidden"
+                            >
+                              {/* Background overlay accent */}
+                              <div className="absolute top-0 right-0 w-12 h-12 bg-cyan-500/5 rounded-full blur-xl pointer-events-none" />
+
+                              <div>
+                                <span className="text-[8px] font-mono uppercase bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded font-bold border border-emerald-500/10">
+                                  {selectedNode.name === activeGuide.mindmap.name
+                                    ? (appLanguage === "en" ? "Primary Core 🪐" : "প্রধান বিষয় 🪐")
+                                    : activeGuide.mindmap.children?.some(c => c.name === selectedNode.name)
+                                    ? (appLanguage === "en" ? "Sub-Process Category 📚" : "উপ-ক্যাটাগরি 📚")
+                                    : (appLanguage === "en" ? "Playful Fact detail 💡" : "খেলার ছলে তথ্য 💡")
+                                  }
+                                </span>
+                                <h4 className="text-sm font-extrabold text-slate-800 dark:text-white tracking-tight mt-2.5">
+                                  {selectedNode.name}
+                                </h4>
+                              </div>
+
                               <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-sans">
                                 {selectedNode.description}
                               </p>
-                            </div>
+
+                              {/* Speak node content helper */}
+                              <div className="pt-2">
+                                <button
+                                  onClick={() => speakText(selectedNode.description)}
+                                  className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold text-slate-600 dark:text-slate-300 hover:text-cyan-400 dark:hover:text-cyan-400 bg-slate-150/70 dark:bg-[#0f1932] border border-slate-200 dark:border-white/5 rounded-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                                >
+                                  <Volume2 className="w-3.5 h-3.5" />
+                                  <span>{appLanguage === "en" ? "Listen Out Loud" : "মুখে শুনুন"}</span>
+                                </button>
+                              </div>
+                            </motion.div>
                           ) : (
-                            <div className="py-12 text-center text-slate-500 text-xs font-sans">
-                              Click any node in the tree to decipher its concept explanation here.
+                            <div className="py-14 text-center text-slate-400 dark:text-slate-500 text-xs font-sans bg-slate-50/50 dark:bg-[#0b1326]/50 rounded-xl border border-dashed border-slate-200 dark:border-white/5">
+                              🧩 {appLanguage === "en" ? "Click any node in the whiteboard to decipher its explanation here!" : "হোয়াইটবোর্ডের যেকোনো নোডে ক্লিক করে তার ব্যাখ্যা এখানে ডিকোড করুন!"}
                             </div>
                           )}
                         </div>
 
-                        {/* Mind map guidance */}
+                        {/* Interactive prompt block */}
                         <div className="pt-4 border-t dark:border-white/5 border-slate-200 mt-6 bg-slate-100/50 dark:bg-slate-900/10 p-3.5 rounded-xl">
                           <div className="flex gap-2 items-start">
                             <Lightbulb className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                            <p className="text-[11px] text-slate-500 leading-normal">
-                              <strong>Study Prompt:</strong> Visualize the relationships. Flow starting from the top <strong>ROOT</strong>, through sub-process categories, down to specific details.
+                            <p className="text-[10px] text-slate-500 leading-normal font-sans">
+                              {appLanguage === "en" ? (
+                                <span><strong>Whiteboard navigation:</strong> You can drag the map space, change zoom with buttons, or click a node to read and speak. Switch to <strong>Riddle Mode</strong> to test active memory!</span>
+                              ) : (
+                                <span><strong>হোয়াইটবোর্ড টিপস:</strong> ম্যাপটি টেনে সরাতে পারেন, জুম করতে পারেন বা শুনতে নোডে ক্লিক করতে পারেন। স্মৃতি পরীক্ষা করতে <strong>ধাঁধা গেম</strong> অন করুন!</span>
+                              )}
                             </p>
                           </div>
                         </div>
@@ -2863,7 +3748,7 @@ export default function StudyGuideApp() {
                             >
                               {msg.role === "bot" && (
                                 <span className="text-[10px] font-bold uppercase tracking-widest text-indigo-500 dark:text-indigo-400 block mb-1">
-                                  Buddy 🐻
+                                  Buddy {getMascotEmoji()}
                                 </span>
                               )}
                               <p className="text-sm leading-relaxed">{msg.text}</p>
@@ -3061,15 +3946,36 @@ export default function StudyGuideApp() {
 
                     {/* ACHIEVEMENTS BADGES */}
                     <div className="p-6 rounded-2xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white shadow-md">
-                      <div className="flex items-center gap-2 mb-6">
-                        <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg">
-                          <Flame className="w-4 h-4" />
+                      <div 
+                        className="flex justify-between items-center cursor-pointer select-none pb-4 border-b dark:border-white/5 border-slate-100"
+                        onClick={() => setIsAchievementsCollapsed(!isAchievementsCollapsed)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg">
+                            <Flame className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-slate-800 dark:text-white tracking-tight font-sans flex items-center gap-2">
+                              <span>Achievement Badges</span>
+                              <span className="text-[9px] bg-amber-500/10 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded-full font-mono font-normal normal-case">
+                                {isAchievementsCollapsed ? (appLanguage === "en" ? "Show" : "দেখুন") : (appLanguage === "en" ? "Hide" : "লুকান")}
+                              </span>
+                            </h4>
+                            <p className="text-[11px] text-slate-500 mt-0.5">Earn badges by completing study milestones.</p>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="text-sm font-bold text-slate-800 dark:text-white tracking-tight font-sans">Achievement Badges</h4>
-                          <p className="text-[11px] text-slate-500 mt-0.5">Earn badges by completing study milestones.</p>
-                        </div>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isAchievementsCollapsed ? "" : "rotate-180 text-amber-500"}`} />
                       </div>
+
+                      <AnimatePresence initial={false}>
+                        {!isAchievementsCollapsed && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25, ease: "easeInOut" }}
+                            className="overflow-hidden pt-4"
+                          >
 
                       {(() => {
                         const totalSecs = guides.reduce((acc, g) => acc + (g.studySeconds || 0), 0);
@@ -3143,10 +4049,38 @@ export default function StudyGuideApp() {
                           </div>
                         );
                       })()}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
 
                     {/* Chart Visualizations Section */}
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div className="space-y-4">
+                      <div 
+                        className="flex justify-between items-center cursor-pointer select-none pb-2 border-b dark:border-white/5 border-slate-100 mt-2"
+                        onClick={() => setIsChartsCollapsed(!isChartsCollapsed)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-400 dark:text-slate-400 font-mono uppercase tracking-widest flex items-center gap-1.5">
+                            <span>📈 Cognitive Analytics & Charts</span>
+                            <span className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded-full font-mono font-normal normal-case">
+                              {isChartsCollapsed ? (appLanguage === "en" ? "Show" : "দেখুন") : (appLanguage === "en" ? "Hide" : "লুকান")}
+                            </span>
+                          </span>
+                        </div>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isChartsCollapsed ? "" : "rotate-180 text-emerald-400"}`} />
+                      </div>
+
+                      <AnimatePresence initial={false}>
+                        {!isChartsCollapsed && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.25, ease: "easeInOut" }}
+                            className="overflow-hidden"
+                          >
+                            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
                       
                       {/* BAR CHART: Study minutes & retention progress */}
                       <div className="lg:col-span-8 p-6 rounded-2xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white shadow-md flex flex-col justify-between">
@@ -3260,56 +4194,329 @@ export default function StudyGuideApp() {
                     </div>
                   </motion.div>
                 )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        )}
+
+                {activeTab === "parents" && (
+                  <motion.div
+                    key="parents"
+                    initial={{ opacity: 0, x: 25 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -25 }}
+                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                    className="max-w-4xl mx-auto space-y-6 text-left animate-fade-in"
+                  >
+                    {/* Parent header banner */}
+                    <div className="p-6 md:p-8 rounded-3xl bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-indigo-500/10 border border-pink-500/20 shadow-xl relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/10 rounded-full blur-2xl pointer-events-none" />
+                      <div className="absolute bottom-0 left-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+                      
+                      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                        <div className="space-y-2">
+                          <span className="text-[10px] font-mono bg-pink-500/20 text-pink-600 dark:text-pink-400 px-3 py-1 rounded-full border border-pink-500/20 font-bold uppercase tracking-wider">
+                            {t.parentsCorner} 👨‍👩‍👧
+                          </span>
+                          <h3 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">{appLanguage === "en" ? "Parent's Control & Buddy Upgrades" : "অভিভাবক নিয়ন্ত্রণ ও প্রিমিয়াম আপগ্রেড"}</h3>
+                          <p className="text-sm text-slate-600 dark:text-slate-400">
+                            {t.parentsCornerSub}
+                          </p>
+                        </div>
+                        
+                        <div className="shrink-0">
+                          {isPremium ? (
+                            <div className="flex items-center gap-2 bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-4 py-2.5 rounded-2xl font-black text-sm shadow-md animate-bounce">
+                              <span>🌟 STAR PRO ACTIVE 👑</span>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsPremium(true);
+                                try {
+                                  confetti({
+                                    particleCount: 120,
+                                    spread: 70,
+                                    origin: { y: 0.6 }
+                                  });
+                                } catch(e){}
+                              }}
+                              className="px-5 py-3 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-400 hover:to-rose-400 text-white font-extrabold text-xs sm:text-sm rounded-2xl shadow-lg hover:scale-105 active:scale-95 transition-all flex items-center gap-2 cursor-pointer"
+                            >
+                              <span>👑 {appLanguage === "en" ? "Go Premium" : "প্রিমিয়াম হোন"}</span>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Sub-card 1: Study goals & Parent reward */}
+                      <div className="p-6 rounded-3xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white shadow-xl space-y-5">
+                        <div className="flex items-center gap-3 border-b dark:border-white/5 border-slate-100 pb-3">
+                          <div className="w-9 h-9 rounded-xl bg-pink-500/10 flex items-center justify-center border border-pink-500/25 text-pink-500 text-lg font-bold">🎯</div>
+                          <div>
+                            <h4 className="font-extrabold text-slate-800 dark:text-white text-md">{appLanguage === "en" ? "Study Goal & Incentive" : "পড়ার লক্ষ্য ও উপহার"}</h4>
+                            <p className="text-[11px] text-slate-500">{appLanguage === "en" ? "Set custom targets & rewards" : "বাচ্চার জন্য লক্ষ্য ও উপহার সেট করুন"}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="space-y-1.5">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-bold text-slate-700 dark:text-slate-300">{appLanguage === "en" ? "Weekly Target Playtime:" : "সাপ্তাহিক লক্ষ্য সময়:"}</span>
+                              <span className="font-mono font-black text-pink-500 text-sm bg-pink-500/10 px-2 py-0.5 rounded-lg">{parentGoalTime} {appLanguage === "en" ? "mins" : "মিনিট"}</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="5"
+                              max="120"
+                              step="5"
+                              value={parentGoalTime}
+                              onChange={(e) => setParentGoalTime(parseInt(e.target.value))}
+                              className="w-full accent-pink-500 h-2 bg-slate-100 dark:bg-slate-800 rounded-lg cursor-pointer"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">{appLanguage === "en" ? "Custom Incentive Reward:" : "বাচ্চার জন্য পুরস্কারের ঘোষণা:"}</label>
+                            <input
+                              type="text"
+                              value={parentRewardMsg}
+                              onChange={(e) => setParentRewardMsg(e.target.value)}
+                              placeholder="e.g. Delicious pizza party! 🍕"
+                              className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-pink-500 font-sans"
+                            />
+                          </div>
+
+                          {/* Progress toward reward */}
+                          {(() => {
+                            const totalSecs = guides.reduce((acc, g) => acc + (g.studySeconds || 0), 0);
+                            const currentMins = parseFloat((totalSecs / 60).toFixed(1));
+                            const percent = Math.min(100, Math.round((currentMins / parentGoalTime) * 100));
+                            
+                            return (
+                              <div className="pt-3 border-t dark:border-white/5 border-slate-100 space-y-2">
+                                <div className="flex justify-between items-center text-[11px] font-bold">
+                                  <span className="text-slate-500">{appLanguage === "en" ? "Current Reward Progress:" : "পুরস্কারের অগ্রগতি:"}</span>
+                                  <span className="text-pink-500">{currentMins} / {parentGoalTime} mins ({percent}%)</span>
+                                </div>
+                                <div className="h-3 w-full bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden border dark:border-white/5 border-slate-200">
+                                  <div 
+                                    className="h-full bg-gradient-to-r from-pink-500 to-purple-500 rounded-full transition-all duration-500"
+                                    style={{ width: `${percent}%` }}
+                                  />
+                                </div>
+                                {percent >= 100 ? (
+                                  <div className="p-2.5 bg-green-500/15 border border-green-500/20 text-green-600 dark:text-green-400 text-xs rounded-xl font-bold text-center animate-pulse">
+                                    🎉 {appLanguage === "en" ? `Goal Reached! Award unlocked: ${parentRewardMsg}` : `লক্ষ্য পূরণ হয়েছে! আনলক হওয়া পুরস্কার: ${parentRewardMsg}`}
+                                  </div>
+                                ) : (
+                                  <p className="text-[10px] text-slate-500 text-left">
+                                    {appLanguage === "en" ? `Study ${Math.max(0, parseFloat((parentGoalTime - currentMins).toFixed(1)))} more minutes to earn the reward!` : `পুরস্কারটি জিততে আরও ${Math.max(0, parseFloat((parentGoalTime - currentMins).toFixed(1)))} মিনিট পড়তে হবে!`}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Sub-card 2: AI mascot text speaking custom note */}
+                      <div className="p-6 rounded-3xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white shadow-xl space-y-5">
+                        <div className="flex items-center gap-3 border-b dark:border-white/5 border-slate-100 pb-3">
+                          <div className="w-9 h-9 rounded-xl bg-purple-500/10 flex items-center justify-center border border-purple-500/25 text-purple-500 text-lg font-bold">💬</div>
+                          <div>
+                            <h4 className="font-extrabold text-slate-800 dark:text-white text-md">{appLanguage === "en" ? "Custom Note Reader" : "অভিভাবকের বিশেষ বার্তা"}</h4>
+                            <p className="text-[11px] text-slate-500">{appLanguage === "en" ? "Let the mascot speak your message aloud" : "বাডি আপনার বার্তাটি বাচ্চাকে মুখে পড়ে শোনাবে"}</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3.5">
+                          <textarea
+                            rows={3}
+                            value={parentNoteToChild}
+                            onChange={(e) => setParentNoteToChild(e.target.value)}
+                            placeholder={appLanguage === "en" ? "Type a sweet message for your child. Your AI Study Buddy will read it in their chosen voice character!" : "বাচ্চার জন্য একটি মিষ্টি বার্তা লিখুন। এআই স্টাডি বাডি তার নিজের কণ্ঠে এটি বাচ্চাকে পড়ে শোনাবে!"}
+                            className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500 font-sans resize-none"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={() => speakText(parentNoteToChild || (appLanguage === "en" ? "Great job, little buddy! Keep up the amazing work!" : "দারুণ করছ সোনা! এভাবেই মনোযোগ দিয়ে পড়াশোনা করো!"))}
+                            disabled={!parentNoteToChild.trim()}
+                            className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
+                          >
+                            <Volume2 className="w-4 h-4" />
+                            <span>{appLanguage === "en" ? "Read Note Aloud 🔊" : "বার্তাটি মুখে শোনাও 🔊"}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                      {/* Universal AI API Configuration Card */}
+                      <div className="p-6 rounded-3xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white shadow-xl space-y-5">
+                        <div className="flex items-center gap-3 border-b dark:border-white/5 border-slate-100 pb-3">
+                          <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/25 text-indigo-500 text-lg font-bold">⚙️</div>
+                          <div>
+                            <h4 className="font-extrabold text-slate-800 dark:text-white text-md">Universal AI API Routing</h4>
+                            <p className="text-[11px] text-slate-500">Route your AI study requests through any operator or local model</p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="space-y-1.5 text-left">
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">AI API Operator / Provider:</label>
+                            <select
+                              value={apiOperator}
+                              onChange={(e) => handleSetApiOperator(e.target.value as any)}
+                              className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
+                            >
+                              <option value="gemini">Google Gemini (Built-in Server-Side API Key)</option>
+                              <option value="openai">OpenAI (Requires Server Proxy)</option>
+                              <option value="custom">Custom Endpoint (Ollama / OpenRouter / Local LLM)</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-1.5 text-left">
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">Target AI Model Name:</label>
+                            <input
+                              type="text"
+                              value={apiModel}
+                              onChange={(e) => handleSetApiModel(e.target.value)}
+                              placeholder="e.g. gemini-3.5-flash, gpt-4o, llama3"
+                              className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                            />
+                            <p className="text-[9px] text-slate-500">Specify the model name to request from your chosen operator endpoint.</p>
+                          </div>
+
+                          {apiOperator === "custom" && (
+                            <div className="space-y-1.5 text-left">
+                              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">Custom URL Endpoint:</label>
+                              <input
+                                type="text"
+                                value={apiCustomUrl}
+                                onChange={(e) => handleSetApiCustomUrl(e.target.value)}
+                                placeholder="e.g. http://localhost:11434/v1"
+                                className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                              />
+                              <p className="text-[9px] text-slate-500">Provide the full base API endpoint URL of your custom server or Ollama proxy.</p>
+                            </div>
+                          )}
+
+                          <div className="p-3 bg-indigo-500/5 rounded-xl border border-indigo-500/10 text-[10px] text-indigo-600 dark:text-indigo-400 leading-relaxed font-sans text-left">
+                            <strong>Universal Routing Active:</strong> Settings are saved automatically in your browser&apos;s LocalStorage and will proxy safely through server routes to prevent client key leaks.
+                          </div>
+                        </div>
+                      </div>
+
+                    {/* Cute animal avatar selector */}
+                    <div className="p-6 rounded-3xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white shadow-xl space-y-4">
+                      <div className="flex items-center justify-between border-b dark:border-white/5 border-slate-100 pb-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center border border-amber-500/25 text-amber-500 text-lg font-bold">🐻</div>
+                          <div>
+                            <h4 className="font-extrabold text-slate-800 dark:text-white text-md">{appLanguage === "en" ? "Choose Mascot Partner" : "স্টাডি পার্টনার বাডি বাছুন"}</h4>
+                            <p className="text-[11px] text-slate-500">{appLanguage === "en" ? "Change your interactive companion character" : "আপনার বাচ্চার পছন্দের চরিত্রটি সিলেক্ট করুন"}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5 pt-2">
+                        {([
+                          { id: "bear", label: appLanguage === "en" ? "Barnaby Bear" : "বার্নাবি ভাল্লুক", emoji: "🐻", color: "border-amber-500 bg-amber-500/5", premium: false },
+                          { id: "bunny", label: appLanguage === "en" ? "Blossom Bunny" : "ব্লসম খরগোশ", emoji: "🐰", color: "border-pink-500 bg-pink-500/5", premium: false },
+                          { id: "dino", label: appLanguage === "en" ? "Dexter Dino" : "ডেক্সটার ডাইনো", emoji: "🦖", color: "border-emerald-500 bg-emerald-500/5", premium: true },
+                          { id: "unicorn", label: appLanguage === "en" ? "Unicorn" : "ইউনিকর্ন", emoji: "🦄", color: "border-purple-500 bg-purple-500/5", premium: true },
+                          { id: "panda", label: appLanguage === "en" ? "Pip Panda" : "পিপ পান্ডা", emoji: "🐼", color: "border-slate-500 bg-slate-500/5", premium: true }
+                        ] as const).map((avatar) => {
+                          const isSelected = kidAvatar === avatar.id;
+                          const locked = avatar.premium && !isPremium;
+
+                          return (
+                            <button
+                              key={avatar.id}
+                              type="button"
+                              onClick={() => {
+                                if (locked) {
+                                  alert(appLanguage === "en" ? "Unlock Dexter, Unicorn and Panda with Super Kid Premium! 👑" : "ডাইনো, ইউনিকর্ন ও পান্ডা বাডি পেতে সুপার কিড প্রিমিয়াম মেম্বার হোন! 👑");
+                                  return;
+                                }
+                                setKidAvatar(avatar.id);
+                              }}
+                              className={`p-3.5 rounded-2xl border-2 flex flex-col items-center gap-2 cursor-pointer transition-all min-h-[100px] ${
+                                isSelected 
+                                  ? `${avatar.color} ring-2 ring-indigo-500 scale-[1.03] shadow-md` 
+                                  : "border-slate-200 dark:border-white/5 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-900/30"
+                              } relative`}
+                            >
+                              <span className="text-4xl">{avatar.emoji}</span>
+                              <span className="text-xs font-bold text-slate-800 dark:text-white leading-tight">{avatar.label}</span>
+                              {locked && (
+                                <div className="absolute top-1.5 right-1.5 bg-amber-500 text-white rounded-full p-1 text-[8px] font-bold shadow-md">
+                                  👑
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* SaaS monetization / Pricing Simulation table */}
+                    {!isPremium && (
+                      <div className="p-6 md:p-8 rounded-3xl bg-gradient-to-br from-indigo-900/40 via-[#0e162b] to-slate-900 border border-indigo-500/30 text-white text-center space-y-6 shadow-2xl relative overflow-hidden">
+                        <div className="absolute -top-10 -right-10 w-40 h-40 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+                        <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+
+                        <div className="space-y-2 max-w-lg mx-auto">
+                          <h4 className="text-xl font-black tracking-tight">{t.premiumUpgrade}</h4>
+                          <p className="text-xs text-slate-300 leading-relaxed">
+                            {t.unlockPremiumText}
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-xl mx-auto pt-2">
+                          <div className="p-4 rounded-2xl bg-[#141d33] border border-white/5 text-left flex items-start gap-3">
+                            <span className="text-xl">🎨</span>
+                            <div>
+                              <h5 className="text-xs font-bold text-slate-200">{appLanguage === "en" ? "Premium Avatars" : "সব প্রিমিয়াম বাডি"}</h5>
+                              <p className="text-[10px] text-slate-400 mt-0.5">{appLanguage === "en" ? "Unlock Dino, Unicorn & Panda companion characters" : "ডাইনোসর, ইউনিকর্ন এবং কিউট পান্ডা থিম সিলেক্ট করুন"}</p>
+                            </div>
+                          </div>
+                          <div className="p-4 rounded-2xl bg-[#141d33] border border-white/5 text-left flex items-start gap-3">
+                            <span className="text-xl">🔊</span>
+                            <div>
+                              <h5 className="text-xs font-bold text-slate-200">{appLanguage === "en" ? "Dino & Magical Voices" : "ডাইনোসর ও রোবট ভয়েস"}</h5>
+                              <p className="text-[10px] text-slate-400 mt-0.5">{appLanguage === "en" ? "Custom sound pitches & friendly reading speeds" : "জাদুকরী কার্টুন পিচ ও পড়ার আকর্ষণীয় স্পিড"}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setIsPremium(true);
+                            try {
+                              confetti({
+                                particleCount: 150,
+                                spread: 80,
+                                origin: { y: 0.6 }
+                              });
+                            } catch(e){}
+                          }}
+                          className="px-8 py-4 bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-sm rounded-2xl shadow-xl hover:scale-105 active:scale-95 transition-all cursor-pointer inline-flex items-center gap-2"
+                        >
+                          <span>👑 {t.becomeProBtn}</span>
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
 
               </AnimatePresence>
             </div>
-
-            {/* BOTTOM NAVIGATION DOCK (KIDS UI) */}
-            <div className="bg-white dark:bg-[#080d19] border-t dark:border-white/5 border-slate-200 p-2 md:p-3 shrink-0 flex justify-center z-40 w-full shadow-[0_-10px_40px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.2)]">
-              <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-1 max-w-full w-full justify-start md:justify-center no-scrollbar px-2">
-                  {([
-                    { id: "feynman", label: t.feynmanDeconstruction, icon: Lightbulb, color: "text-amber-500", bg: "bg-amber-500/10" },
-                    { id: "mindmap", label: t.mindmap, icon: Compass, color: "text-blue-500", bg: "bg-blue-500/10" },
-                    { id: "flashcards", label: t.flashcards, icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-                    { id: "clarifier", label: t.clarifier, icon: HelpCircle, color: "text-purple-500", bg: "bg-purple-500/10" },
-                    { id: "voiceChat", label: t.voiceChat, icon: Mic, color: "text-rose-500", bg: "bg-rose-500/10" },
-                    { id: "dashboard", label: t.dashboard, icon: BarChart2, color: "text-indigo-500", bg: "bg-indigo-500/10" }
-                  ] as const).map((tab) => {
-                    const Icon = tab.icon;
-                    const isSelected = activeTab === tab.id;
-                    const isChatTab = tab.id === "clarifier" || tab.id === "voiceChat";
-
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`relative flex flex-col items-center justify-center gap-1.5 p-2 sm:px-4 sm:py-3 rounded-[20px] transition-transform active:scale-95 shrink-0 cursor-pointer min-w-[75px] sm:min-w-[100px] z-10 ${
-                          isSelected
-                            ? "text-slate-900 dark:text-white"
-                            : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                        }`}
-                        id={`tab_btn_${tab.id}`}
-                      >
-                        {isSelected && (
-                          <motion.div
-                            layoutId="activeTabIndicatorBottom"
-                            className={`absolute inset-0 ${tab.bg} rounded-[20px] border border-black/5 dark:border-white/5 shadow-sm`}
-                            initial={false}
-                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                          />
-                        )}
-                        <span className="relative z-10 flex flex-col items-center gap-1.5">
-                          <Icon className={`w-6 h-6 sm:w-8 sm:h-8 ${isSelected ? tab.color : ""} ${isChatTab && !isSelected ? "animate-pulse" : ""}`} />
-                          <span className={`text-[10px] sm:text-xs font-bold font-heading ${isSelected ? "opacity-100" : "opacity-70"} text-center leading-tight max-w-[80px]`}>
-                            {tab.label}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-              </div>
-            </div>
-
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
@@ -3373,6 +4580,7 @@ export default function StudyGuideApp() {
         )}
       </AnimatePresence>
 
+      <GeminiAssistant activeGuide={activeGuide} appLanguage={appLanguage} />
     </div>
   );
 }

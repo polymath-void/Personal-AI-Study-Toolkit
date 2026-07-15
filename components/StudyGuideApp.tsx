@@ -525,13 +525,25 @@ export default function StudyGuideApp() {
   const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
 
   // Universal AI API Configuration states
-  const [apiOperator, setApiOperator] = useState<"gemini" | "openai" | "custom">("gemini");
+  const [apiOperator, setApiOperator] = useState<"gemini" | "openai" | "groq" | "deepseek" | "openrouter" | "custom">("gemini");
   const [apiModel, setApiModel] = useState<string>("gemini-3.5-flash");
   const [apiCustomUrl, setApiCustomUrl] = useState<string>("");
+  const [apiKeyValue, setApiKeyValue] = useState<string>("");
 
-  const handleSetApiOperator = (op: "gemini" | "openai" | "custom") => {
+  const handleSetApiOperator = (op: "gemini" | "openai" | "groq" | "deepseek" | "openrouter" | "custom") => {
     setApiOperator(op);
     localStorage.setItem("feynman_api_operator", op);
+    
+    // Automatically set high-quality default models for each operator
+    let defaultModel = "gemini-3.5-flash";
+    if (op === "openai") defaultModel = "gpt-4o-mini";
+    else if (op === "groq") defaultModel = "llama-3.3-70b-versatile";
+    else if (op === "deepseek") defaultModel = "deepseek-chat";
+    else if (op === "openrouter") defaultModel = "google/gemini-2.5-flash";
+    else if (op === "custom") defaultModel = "";
+    
+    setApiModel(defaultModel);
+    localStorage.setItem("feynman_api_model", defaultModel);
   };
 
   const handleSetApiModel = (model: string) => {
@@ -542,6 +554,11 @@ export default function StudyGuideApp() {
   const handleSetApiCustomUrl = (url: string) => {
     setApiCustomUrl(url);
     localStorage.setItem("feynman_api_custom_url", url);
+  };
+
+  const handleSetApiKeyValue = (key: string) => {
+    setApiKeyValue(key);
+    localStorage.setItem("feynman_api_key", key);
   };
 
   const toggleBookmark = (id: string, e?: React.MouseEvent) => {
@@ -562,13 +579,15 @@ export default function StudyGuideApp() {
       const savedOperator = localStorage.getItem("feynman_api_operator") || "gemini";
       const savedModel = localStorage.getItem("feynman_api_model") || "gemini-3.5-flash";
       const savedCustomUrl = localStorage.getItem("feynman_api_custom_url") || "";
+      const savedApiKey = localStorage.getItem("feynman_api_key") || "";
       return {
         operator: savedOperator,
         model: savedModel,
-        customUrl: savedCustomUrl
+        customUrl: savedCustomUrl,
+        apiKey: savedApiKey
       };
     } catch (e) {
-      return { operator: "gemini", model: "gemini-3.5-flash", customUrl: "" };
+      return { operator: "gemini", model: "gemini-3.5-flash", customUrl: "", apiKey: "" };
     }
   };
   const [chapterSubTab, setChapterSubTab] = useState<"text" | "brief" | "backstory">("text");
@@ -714,8 +733,16 @@ export default function StudyGuideApp() {
     const savedOperator = localStorage.getItem("feynman_api_operator");
     const savedModel = localStorage.getItem("feynman_api_model");
     const savedCustomUrl = localStorage.getItem("feynman_api_custom_url");
+    const savedApiKey = localStorage.getItem("feynman_api_key");
 
-    if (savedOperator === "gemini" || savedOperator === "openai" || savedOperator === "custom") {
+    if (
+      savedOperator === "gemini" ||
+      savedOperator === "openai" ||
+      savedOperator === "groq" ||
+      savedOperator === "deepseek" ||
+      savedOperator === "openrouter" ||
+      savedOperator === "custom"
+    ) {
       setApiOperator(savedOperator as any);
     }
     if (savedModel) {
@@ -723,6 +750,9 @@ export default function StudyGuideApp() {
     }
     if (savedCustomUrl) {
       setApiCustomUrl(savedCustomUrl);
+    }
+    if (savedApiKey) {
+      setApiKeyValue(savedApiKey);
     }
   }, []);
 
@@ -4373,9 +4403,12 @@ export default function StudyGuideApp() {
                               onChange={(e) => handleSetApiOperator(e.target.value as any)}
                               className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
                             >
-                              <option value="gemini">Google Gemini (Built-in Server-Side API Key)</option>
-                              <option value="openai">OpenAI (Requires Server Proxy)</option>
-                              <option value="custom">Custom Endpoint (Ollama / OpenRouter / Local LLM)</option>
+                              <option value="gemini">Google Gemini (Default or Custom Key)</option>
+                              <option value="openai">OpenAI (Custom Key or Proxy)</option>
+                              <option value="groq">Groq Cloud (Custom Key or Proxy)</option>
+                              <option value="deepseek">DeepSeek AI (Custom Key or Proxy)</option>
+                              <option value="openrouter">OpenRouter (Custom Key or Proxy)</option>
+                              <option value="custom">Custom Endpoint (Ollama / Local LLM / Others)</option>
                             </select>
                           </div>
 
@@ -4385,7 +4418,7 @@ export default function StudyGuideApp() {
                               type="text"
                               value={apiModel}
                               onChange={(e) => handleSetApiModel(e.target.value)}
-                              placeholder="e.g. gemini-3.5-flash, gpt-4o, llama3"
+                              placeholder="e.g. gemini-3.5-flash, gpt-4o-mini, llama-3.3-70b-versatile"
                               className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
                             />
                             <p className="text-[9px] text-slate-500">Specify the model name to request from your chosen operator endpoint.</p>
@@ -4398,12 +4431,31 @@ export default function StudyGuideApp() {
                                 type="text"
                                 value={apiCustomUrl}
                                 onChange={(e) => handleSetApiCustomUrl(e.target.value)}
-                                placeholder="e.g. http://localhost:11434/v1"
+                                placeholder="e.g. http://localhost:11434/v1/chat/completions"
                                 className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
                               />
                               <p className="text-[9px] text-slate-500">Provide the full base API endpoint URL of your custom server or Ollama proxy.</p>
                             </div>
                           )}
+
+                          {/* API Key field for non-default server use */}
+                          <div className="space-y-1.5 text-left">
+                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                              Custom API Secret Key (Optional):
+                            </label>
+                            <input
+                              type="password"
+                              value={apiKeyValue}
+                              onChange={(e) => handleSetApiKeyValue(e.target.value)}
+                              placeholder="••••••••••••••••••••••••"
+                              className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                            />
+                            <p className="text-[9px] text-slate-500">
+                              {apiOperator === "gemini" 
+                                ? "Optionally provide your own Gemini Key to bypass global project limits."
+                                : `Enter your personal ${apiOperator.toUpperCase()} API key. It is saved securely in your local browser.`}
+                            </p>
+                          </div>
 
                           <div className="p-3 bg-indigo-500/5 rounded-xl border border-indigo-500/10 text-[10px] text-indigo-600 dark:text-indigo-400 leading-relaxed font-sans text-left">
                             <strong>Universal Routing Active:</strong> Settings are saved automatically in your browser&apos;s LocalStorage and will proxy safely through server routes to prevent client key leaks.

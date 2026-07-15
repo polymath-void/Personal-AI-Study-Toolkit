@@ -29,14 +29,6 @@ Guidelines for your outputs:
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "GEMINI_API_KEY environment variable is not configured. Please set it in Settings > Secrets." },
-        { status: 500 }
-      );
-    }
-
     const body = await req.json();
     const { action, topic, context, history, question, studyGuideContext, language, apiConfig } = body;
 
@@ -46,6 +38,14 @@ export async function POST(req: NextRequest) {
     const operator = apiConfig?.operator || "gemini";
     const modelToUse = apiConfig?.model || "gemini-3.5-flash";
     const customUrl = apiConfig?.customUrl || "";
+    const userApiKey = apiConfig?.apiKey || "";
+
+    if (operator === "gemini" && !userApiKey && !process.env.GEMINI_API_KEY) {
+      return NextResponse.json(
+        { error: "GEMINI_API_KEY environment variable is not configured. Please set it in Settings > Secrets, or enter a custom Gemini API Key in the routing settings." },
+        { status: 500 }
+      );
+    }
 
     // Unified AI router helper
     const generateAIResponse = async (options: {
@@ -58,10 +58,28 @@ export async function POST(req: NextRequest) {
     }) => {
       const { contents, systemInstruction, responseSchema, responseMimeType, temperature = 0.4, useSearch = true } = options;
 
-      // Custom OpenAI / Compatible Operator
-      if (operator === "openai" || (operator === "custom" && customUrl)) {
-        const endpoint = customUrl || "https://api.openai.com/v1/chat/completions";
-        
+      // Custom / OpenAI / Groq / DeepSeek / OpenRouter Operators (OpenAI-compatible)
+      if (operator !== "gemini") {
+        let endpoint = "";
+        let authHeader = "";
+
+        if (operator === "openai") {
+          endpoint = "https://api.openai.com/v1/chat/completions";
+          authHeader = `Bearer ${userApiKey || process.env.OPENAI_API_KEY || ""}`;
+        } else if (operator === "groq") {
+          endpoint = "https://api.groq.com/openai/v1/chat/completions";
+          authHeader = `Bearer ${userApiKey || process.env.GROQ_API_KEY || ""}`;
+        } else if (operator === "deepseek") {
+          endpoint = "https://api.deepseek.com/chat/completions";
+          authHeader = `Bearer ${userApiKey || process.env.DEEPSEEK_API_KEY || ""}`;
+        } else if (operator === "openrouter") {
+          endpoint = "https://openrouter.ai/api/v1/chat/completions";
+          authHeader = `Bearer ${userApiKey || process.env.OPENROUTER_API_KEY || ""}`;
+        } else if (operator === "custom") {
+          endpoint = customUrl || "http://localhost:11434/v1/chat/completions";
+          authHeader = userApiKey ? `Bearer ${userApiKey}` : "";
+        }
+
         const messages = [];
         if (systemInstruction) {
           messages.push({ role: "system", content: systemInstruction });
@@ -69,7 +87,7 @@ export async function POST(req: NextRequest) {
         messages.push({ role: "user", content: contents });
 
         const bodyPayload: any = {
-          model: modelToUse || "gpt-4o-mini",
+          model: modelToUse,
           messages: messages,
           temperature: temperature,
         };
@@ -78,27 +96,47 @@ export async function POST(req: NextRequest) {
           bodyPayload.response_format = { type: "json_object" };
         }
 
-        const openAiRes = await fetch(endpoint, {
+        const headers: any = {
+          "Content-Type": "application/json",
+        };
+        if (authHeader) {
+          headers["Authorization"] = authHeader;
+        }
+        if (operator === "openrouter") {
+          headers["HTTP-Referer"] = "https://ai.studio/build";
+          headers["X-Title"] = "Study Guide Toolkit";
+        }
+
+        const res = await fetch(endpoint, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${process.env.OPENAI_API_KEY || apiKey}`
-          },
+          headers: headers,
           body: JSON.stringify(bodyPayload),
         });
 
-        if (!openAiRes.ok) {
-          const errText = await openAiRes.text();
-          throw new Error(`Custom AI Endpoint Error (${openAiRes.status}): ${errText}`);
+        if (!res.ok) {
+          const errText = await res.text();
+          throw new Error(`AI Endpoint Error (${operator}) - Status ${res.status}: ${errText}`);
         }
 
-        const openAiJson = await openAiRes.json();
-        const resultText = openAiJson.choices?.[0]?.message?.content;
+        const resJson = await res.json();
+        const resultText = resJson.choices?.[0]?.message?.content;
         return { text: resultText || "" };
       }
 
       // Default: Google Gemini SDK using the configurable modelToUse
-      const response = await ai.models.generateContent({
+      let geminiClient = ai;
+      if (userApiKey) {
+        geminiClient = new GoogleGenAI({
+          apiKey: userApiKey,
+          httpOptions: {
+            headers: {
+              "User-Agent": "aistudio-build",
+            },
+          },
+        });
+      }
+
+      const response = await geminiClient.models.generateContent({
         model: modelToUse,
         contents: contents,
         config: {
@@ -309,10 +347,21 @@ STRICT POEM/STORY SEARCH RULE: If the topic "${topic}" is a poem, story, song, o
 
     const text = response.text;
     if (!text) {
-      throw new Error("Empty response received from Gemini.");
+      throw new Error(`Empty response received from AI model (${operator}).`);
     }
 
-    const data = JSON.parse(text);
+    let cleanedText = text.trim();
+    if (cleanedText.startsWith("```")) {
+      const firstLineBreak = cleanedText.indexOf("\n");
+      if (firstLineBreak !== -1) {
+        cleanedText = cleanedText.substring(firstLineBreak).trim();
+      }
+      if (cleanedText.endsWith("```")) {
+        cleanedText = cleanedText.substring(0, cleanedText.length - 3).trim();
+      }
+    }
+
+    const data = JSON.parse(cleanedText);
     return NextResponse.json(data);
   } catch (err: any) {
     console.error("Gemini API server-side error:", err);

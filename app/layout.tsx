@@ -2,6 +2,7 @@ import { Nunito, Quicksand } from "next/font/google";
 import "./globals.css";
 import React from "react";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const nunito = Nunito({ 
   subsets: ["latin"], 
@@ -30,6 +31,7 @@ export default function RootLayout({
       <body className={`bg-[#05080f] text-slate-100 min-h-screen font-sans ${nunito.className}`}>
         {children}
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

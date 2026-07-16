@@ -1,0 +1,1 @@
+sed -i 's/const response = await ai.models.generateContent({/const GoogleGenAIClient = require("@google\/genai").GoogleGenAI;\n      const customAi = apiConfig?.apiKey?.trim() ? new GoogleGenAIClient({ apiKey: apiConfig.apiKey.trim() }) : ai;\n      const response = await customAi.models.generateContent({/g' app/api/gemini/route.ts

@@ -1,0 +1,1 @@
+sed -i 's/const { action, topic, context, history, question, studyGuideContext, language } = body;/const { action, topic, context, history, question, studyGuideContext, language, apiConfig } = body;/g' app/api/gemini/route.ts

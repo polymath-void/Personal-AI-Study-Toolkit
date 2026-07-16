@@ -8,6 +8,8 @@ import {
   Send, 
   Trash2, 
   Plus, 
+  Check,
+  Settings, 
   Search, 
   Lightbulb, 
   ChevronRight, 
@@ -45,11 +47,16 @@ import {
   Volume1,
   Mic,
   Sun,
-  Moon
+  Moon,
+  MessageSquare
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import GeminiAssistant from "./GeminiAssistant";
+import { MessageCenter } from "./shared/MessageCenter";
+import { updateMasteryStat, updateStudentActiveGuide, updateProfilePremiumStatus, updateUserProfile } from "../lib/data_helpers";
+import { getSupabase } from "../lib/supabase";
+import type { Profile } from "../types";
 import {
   ResponsiveContainer,
   BarChart,
@@ -353,7 +360,9 @@ const DICTIONARY = {
     parentsCornerSub: "Set weekly goals, view child playtime stats, and configure motivational star rewards!",
     premiumUpgrade: "Super Kid Premium 👑",
     unlockPremiumText: "Unlock extra cute animal avatar characters, friendly dino/unicorn voice personalities, and print-ready coloring booklets!",
-    becomeProBtn: "Unlock Premium Access 🚀"
+    becomeProBtn: "Unlock Premium Access 🚀",
+    messages: "Messages ✉️",
+    messagesSub: "Securely chat with your teachers and parents in real-time."
   },
   bn: {
     appName: "স্মার্ট কিডস স্টাডি কিট 🐻✨",
@@ -415,21 +424,156 @@ const DICTIONARY = {
     parentsCornerSub: "বাচ্চার পড়ার লক্ষ্য ও সুস্বাদু উপহার বা জাদুকরী অনুপ্রেরণা বার্তা সেট করুন!",
     premiumUpgrade: "সুপার কিড প্রিমিয়াম 👑",
     unlockPremiumText: "সব কিউট এনিম্যাল অবতার, ডাইনোসর ও ইউনিকর্ন ক্যারেক্টার ভয়েস এবং আকর্ষণীয় বুকলেট প্রিন্টিং আনলক করুন!",
-    becomeProBtn: "স্টার প্রো হোন মাত্র ৪৯৯৳/মাসে 🚀"
+    becomeProBtn: "স্টার প্রো হোন মাত্র ৪৯৯৳/মাসে 🚀",
+    messages: "মেসেজ ✉️",
+    messagesSub: "শিক্ষক এবং অভিভাবকদের সাথে সরাসরি কথা বলুন এবং পড়া নিয়ে আলোচনা করুন।"
   }
 };
 
-export default function StudyGuideApp() {
+export default function StudyGuideApp({ profile }: { profile?: Profile }) {
   // Local state management
   const [guides, setGuides] = useState<StudyGuide[]>([]);
   const [activeGuide, setActiveGuide] = useState<StudyGuide | null>(null);
-  const [activeTab, setActiveTab] = useState<"feynman" | "mindmap" | "flashcards" | "clarifier" | "dashboard" | "voiceChat" | "parents">("feynman");
+
+  // Sync active guide to DB for teacher/parent monitoring
+  useEffect(() => {
+    if (profile && activeGuide) {
+      updateStudentActiveGuide(profile.id, activeGuide.topicName);
+    }
+  }, [activeGuide, profile]);
+  const [activeTab, setActiveTab] = useState<"feynman" | "mindmap" | "flashcards" | "clarifier" | "dashboard" | "voiceChat" | "parents" | "messages">("feynman");
   
+  // Focus Mode State
+  const [isFocusMode, setIsFocusMode] = useState(false);
+
+  // Skill Tree / Gamified metrics
+  const [focusPoints, setFocusPoints] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("skill_focus_points");
+      return saved ? parseInt(saved, 10) : 15;
+    }
+    return 15;
+  });
+  const [memoryMastery, setMemoryMastery] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("skill_memory_mastery");
+      return saved ? parseInt(saved, 10) : 30;
+    }
+    return 30;
+  });
+  const [gritGems, setGritGems] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("skill_grit_gems");
+      return saved ? parseInt(saved, 10) : 12;
+    }
+    return 12;
+  });
+
+  // Socratic Bot states
+  const [socraticPersona, setSocraticPersona] = useState<"Oak" | "Alien" | "Dino" | "Unicorn">("Oak");
+  const [selectedStudyLevel, setSelectedStudyLevel] = useState<1 | 2 | 3>(2); // Level 2: Explainer (Feynman) by default
+
   // App-wide language operating (English vs Bengali)
   const [appLanguage, setAppLanguage] = useState<"en" | "bn">("en");
 
   // Topic creation state
   const [newTopic, setNewTopic] = useState("");
+
+  // Pushed active lesson from parent or teacher
+  const [pushedAssignment, setPushedAssignment] = useState("");
+
+  // Poll/Check for real-time pushed guides/lessons from parents or teachers
+  useEffect(() => {
+    if (!profile) return;
+    
+    const checkPushedActivity = async () => {
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('current_activity')
+        .eq('id', profile.id)
+        .maybeSingle();
+        
+      if (data && data.current_activity) {
+        // If the student doesn't have an active guide with this name or it's not active, set it as active
+        const existing = guides.find(g => g.topicName.toLowerCase() === data.current_activity.toLowerCase());
+        if (existing) {
+          if (!activeGuide || activeGuide.topicName.toLowerCase() !== existing.topicName.toLowerCase()) {
+            setPushedAssignment(data.current_activity);
+          }
+        } else {
+          if (!activeGuide || activeGuide.topicName.toLowerCase() !== data.current_activity.toLowerCase()) {
+            setPushedAssignment(data.current_activity);
+          }
+        }
+      }
+    };
+
+    checkPushedActivity();
+
+    // Set up real-time postgres changes subscription for student's profile row
+    const supabase = getSupabase();
+    const channel = supabase
+      .channel(`student-pushed-activity-${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${profile.id}`
+        },
+        (payload: any) => {
+          if (payload.new && payload.new.current_activity) {
+            setPushedAssignment(payload.new.current_activity);
+          }
+        }
+      )
+      .subscribe();
+
+    const interval = setInterval(checkPushedActivity, 15000); // Polling backup every 15s
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
+  }, [profile, guides, activeGuide]);
+
+  // State for teacher assignments
+  const [teacherAssignments, setTeacherAssignments] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchAssignments = async () => {
+      const supabase = getSupabase();
+      const { data } = await supabase
+        .from('study_resources')
+        .select('*')
+        .order('date', { ascending: false })
+        .limit(5);
+      if (data) setTeacherAssignments(data);
+    };
+
+    fetchAssignments();
+    const interval = setInterval(fetchAssignments, 10000); // Poll every 10s
+    return () => clearInterval(interval);
+  }, []);
+
+  // Helper to render assignment card
+  const renderAssignmentCard = (item: any) => (
+    <div key={item.id} className="p-4 rounded-2xl bg-indigo-500/5 border border-indigo-500/10 flex justify-between items-center group hover:bg-indigo-500/10 transition-all">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center">
+          <BookOpen className="w-5 h-5 text-indigo-400" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-slate-200">{item.title}</p>
+          <p className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">New Assignment • {item.date}</p>
+        </div>
+      </div>
+      <button className="p-2 bg-indigo-500/20 text-indigo-400 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+        <ArrowRight className="w-4 h-4" />
+      </button>
+    </div>
+  );
   const [extraContext, setExtraContext] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
@@ -450,6 +594,10 @@ export default function StudyGuideApp() {
   const [isCardFlipped, setIsCardFlipped] = useState(false);
   const [cardStatus, setCardStatus] = useState<Record<number, "correct" | "review" | null>>({});
   const [guidesCardStatus, setGuidesCardStatus] = useState<Record<string, Record<number, "correct" | "review" | null>>>({});
+  const [quizMode, setQuizMode] = useState<"flashcard" | "mcq">("flashcard");
+  const [selectedMcqOption, setSelectedMcqOption] = useState<string | null>(null);
+  const [isMcqAnswered, setIsMcqAnswered] = useState(false);
+  const [shuffledMcqOptions, setShuffledMcqOptions] = useState<string[]>([]);
 
   // Mind map state
   const [selectedNode, setSelectedNode] = useState<{ name: string; description: string } | null>(null);
@@ -508,27 +656,39 @@ export default function StudyGuideApp() {
   // Kid-friendly and Parent SaaS Customizations
   const [kidAvatar, setKidAvatar] = useState<"bear" | "bunny" | "dino" | "unicorn" | "panda">("bear");
   const [isPremium, setIsPremium] = useState(false);
+  const [profileName, setProfileName] = useState(profile?.name || "");
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    if (profile && profile.name) {
+      setProfileName(profile.name);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    if (profile && profile.is_premium !== undefined) {
+      setIsPremium(profile.is_premium);
+    }
+  }, [profile]);
+
+  const handleUpgradePremium = async () => {
+    setIsPremium(true);
+    if (profile) {
+      await updateProfilePremiumStatus(profile.id, true);
+    }
+  };
+
   const [parentGoalTime, setParentGoalTime] = useState(15); // weekly target in minutes
   const [parentRewardMsg, setParentRewardMsg] = useState("A delicious ice cream! 🍦");
   const [parentNoteToChild, setParentNoteToChild] = useState("");
-
-  // Collapsible UI Sections
-  const [isTtsPanelCollapsed, setIsTtsPanelCollapsed] = useState(true);
-  const [isSimplifiedConceptCollapsed, setIsSimplifiedConceptCollapsed] = useState(false);
-  const [isAnalogyCollapsed, setIsAnalogyCollapsed] = useState(false);
-  const [isVocabularyCollapsed, setIsVocabularyCollapsed] = useState(false);
-  const [isAchievementsCollapsed, setIsAchievementsCollapsed] = useState(false);
-  const [isChartsCollapsed, setIsChartsCollapsed] = useState(false);
-  const [isParentSettingsCollapsed, setIsParentSettingsCollapsed] = useState(false);
-
-  // Bookmarks / Pinned guides state
-  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
 
   // Universal AI API Configuration states
   const [apiOperator, setApiOperator] = useState<"gemini" | "openai" | "groq" | "deepseek" | "openrouter" | "custom">("gemini");
   const [apiModel, setApiModel] = useState<string>("gemini-3.5-flash");
   const [apiCustomUrl, setApiCustomUrl] = useState<string>("");
   const [apiKeyValue, setApiKeyValue] = useState<string>("");
+  const [apiChecking, setApiChecking] = useState(false);
+  const [apiCheckStatus, setApiCheckStatus] = useState<null | { success: boolean; message: string }>(null);
 
   const handleSetApiOperator = (op: "gemini" | "openai" | "groq" | "deepseek" | "openrouter" | "custom") => {
     setApiOperator(op);
@@ -561,6 +721,65 @@ export default function StudyGuideApp() {
     localStorage.setItem("feynman_api_key", key);
   };
 
+  const getApiConfigForFetch = () => {
+    return {
+      operator: apiOperator,
+      model: apiModel,
+      customUrl: apiCustomUrl,
+      apiKey: apiKeyValue
+    };
+  };
+
+  const handleCheckApiStatus = async () => {
+    setApiChecking(true);
+    setApiCheckStatus(null);
+    try {
+      const response = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "testConnection",
+          apiConfig: getApiConfigForFetch(),
+          language: appLanguage
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok && data.success) {
+        setApiCheckStatus({
+          success: true,
+          message: appLanguage === "en" 
+            ? `Successfully connected! Model responded: "${data.text}"`
+            : `কানেকশন সফল হয়েছে! এআই মডেলের উত্তর: "${data.text}"`
+        });
+      } else {
+        setApiCheckStatus({
+          success: false,
+          message: data.error || (appLanguage === "en" ? "Failed to establish a connection." : "কানেক্ট করা সম্ভব হয়নি।")
+        });
+      }
+    } catch (err: any) {
+      setApiCheckStatus({
+        success: false,
+        message: err.message || (appLanguage === "en" ? "An unexpected network error occurred." : "একটি অপ্রত্যাশিত নেটওয়ার্ক সমস্যা হয়েছে।")
+      });
+    } finally {
+      setApiChecking(false);
+    }
+  };
+
+  // Collapsible UI Sections
+  const [isTtsPanelCollapsed, setIsTtsPanelCollapsed] = useState(true);
+  const [isSimplifiedConceptCollapsed, setIsSimplifiedConceptCollapsed] = useState(false);
+  const [isAnalogyCollapsed, setIsAnalogyCollapsed] = useState(false);
+  const [isVocabularyCollapsed, setIsVocabularyCollapsed] = useState(false);
+  const [isAchievementsCollapsed, setIsAchievementsCollapsed] = useState(false);
+  const [isChartsCollapsed, setIsChartsCollapsed] = useState(false);
+  const [isParentSettingsCollapsed, setIsParentSettingsCollapsed] = useState(false);
+
+  // Bookmarks / Pinned guides state
+  const [bookmarkedIds, setBookmarkedIds] = useState<string[]>([]);
+
   const toggleBookmark = (id: string, e?: React.MouseEvent) => {
     if (e) {
       e.stopPropagation();
@@ -574,22 +793,6 @@ export default function StudyGuideApp() {
     });
   };
 
-  const getApiConfigForFetch = () => {
-    try {
-      const savedOperator = localStorage.getItem("feynman_api_operator") || "gemini";
-      const savedModel = localStorage.getItem("feynman_api_model") || "gemini-3.5-flash";
-      const savedCustomUrl = localStorage.getItem("feynman_api_custom_url") || "";
-      const savedApiKey = localStorage.getItem("feynman_api_key") || "";
-      return {
-        operator: savedOperator,
-        model: savedModel,
-        customUrl: savedCustomUrl,
-        apiKey: savedApiKey
-      };
-    } catch (e) {
-      return { operator: "gemini", model: "gemini-3.5-flash", customUrl: "", apiKey: "" };
-    }
-  };
   const [chapterSubTab, setChapterSubTab] = useState<"text" | "brief" | "backstory">("text");
   const [focusRulerActive, setFocusRulerActive] = useState(false);
   const [focusRulerPosition, setFocusRulerPosition] = useState<number | null>(null);
@@ -661,9 +864,11 @@ export default function StudyGuideApp() {
       setVoicePersona(savedVoicePersona);
     }
     
+    let parsedCardStatuses: Record<string, Record<number, "correct" | "review" | null>> = {};
     if (savedCardStatuses) {
       try {
-        setGuidesCardStatus(JSON.parse(savedCardStatuses));
+        parsedCardStatuses = JSON.parse(savedCardStatuses);
+        setGuidesCardStatus(parsedCardStatuses);
       } catch (e) {
         console.error("Failed to parse saved card statuses:", e);
       }
@@ -682,6 +887,10 @@ export default function StudyGuideApp() {
           }));
           setGuides(migrated);
           setActiveGuide(migrated[0]);
+          
+          // Instant sync card status to avoid React async state batching delay
+          const activeCardStatus = parsedCardStatuses[migrated[0].id] || {};
+          setCardStatus(activeCardStatus);
           return;
         }
       } catch (e) {
@@ -692,6 +901,10 @@ export default function StudyGuideApp() {
     const initialGuides = [DEFAULT_STUDY_GUIDE_BN, DEFAULT_STUDY_GUIDE];
     setGuides(initialGuides);
     setActiveGuide(initialGuides[0]);
+    
+    // Instant sync card status to avoid React async state batching delay
+    const activeCardStatus = parsedCardStatuses[initialGuides[0].id] || {};
+    setCardStatus(activeCardStatus);
 
     // Load and validate daily study streak from localStorage
     const savedStreak = localStorage.getItem("feynman_streak_count");
@@ -793,8 +1006,7 @@ export default function StudyGuideApp() {
           action: "voiceChat",
           question: text,
           history: voiceChatHistory,
-          language: appLanguage,
-          apiConfig: getApiConfigForFetch()
+          language: appLanguage, apiConfig: getApiConfigForFetch(),
         }),
       });
       if (!response.ok) throw new Error("Failed to get voice chat response");
@@ -823,8 +1035,7 @@ export default function StudyGuideApp() {
         body: JSON.stringify({
           action: "chat",
           question: message,
-          language: appLanguage,
-          apiConfig: getApiConfigForFetch()
+          language: appLanguage, apiConfig: getApiConfigForFetch(),
         }),
       });
       const data = await response.json();
@@ -1066,8 +1277,7 @@ export default function StudyGuideApp() {
         body: JSON.stringify({
           action: "didYouKnow",
           topic: activeGuide.topicName,
-          language: appLanguage,
-          apiConfig: getApiConfigForFetch()
+          language: appLanguage, apiConfig: getApiConfigForFetch(),
         }),
       });
 
@@ -1301,7 +1511,7 @@ export default function StudyGuideApp() {
       ]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeGuide]);
+  }, [activeGuide?.id]);
 
   // Launch guide generation
   const handleGenerate = async (e: React.FormEvent) => {
@@ -1320,8 +1530,7 @@ export default function StudyGuideApp() {
           action: "generate",
           topic: newTopic,
           context: extraContext,
-          language: appLanguage,
-          apiConfig: getApiConfigForFetch()
+          language: appLanguage, apiConfig: getApiConfigForFetch(),
         }),
       });
 
@@ -1378,6 +1587,7 @@ export default function StudyGuideApp() {
         body: JSON.stringify({
           action: "chat",
           question: textToSend,
+          socraticPersona: socraticPersona,
           studyGuideContext: {
             topicName: activeGuide.topicName,
             simplifiedConcept: activeGuide.simplifiedConcept,
@@ -1386,8 +1596,7 @@ export default function StudyGuideApp() {
             mindmap: activeGuide.mindmap
           },
           history: chatHistory.slice(-6), // Send recent message history to keep context
-          language: appLanguage,
-          apiConfig: getApiConfigForFetch()
+          language: appLanguage, apiConfig: getApiConfigForFetch(),
         }),
       });
 
@@ -1397,6 +1606,13 @@ export default function StudyGuideApp() {
 
       const data = await response.json();
       setChatHistory((prev) => [...prev, { sender: "ai", text: data.text }]);
+      
+      // Award a Grit Gem for active communication and Socratic exploration!
+      setGritGems((prev) => {
+        const next = prev + 1;
+        localStorage.setItem("skill_grit_gems", next.toString());
+        return next;
+      });
     } catch (err: any) {
       setChatHistory((prev) => [
         ...prev,
@@ -1423,6 +1639,89 @@ export default function StudyGuideApp() {
       ...prev,
       [term]: !prev[term]
     }));
+  };
+
+  // Generate and shuffle MCQ options for the current card
+  useEffect(() => {
+    if (!activeGuide || !activeGuide.flashcards || activeGuide.flashcards.length === 0) return;
+    const currentCard = activeGuide.flashcards[currentCardIndex];
+    if (!currentCard) return;
+
+    const correctAnswer = currentCard.answer;
+    
+    // Collect alternative answers as distractor candidates
+    const otherAnswers = activeGuide.flashcards
+      .map((c) => c.answer)
+      .filter((ans) => ans !== correctAnswer);
+
+    const distractors: string[] = [];
+    
+    // Sample unique distractors from other card answers
+    const otherAnswersPool = [...otherAnswers];
+    while (distractors.length < 3 && otherAnswersPool.length > 0) {
+      const randomIndex = Math.floor(Math.random() * otherAnswersPool.length);
+      const chosen = otherAnswersPool.splice(randomIndex, 1)[0];
+      if (!distractors.includes(chosen)) {
+        distractors.push(chosen);
+      }
+    }
+
+    // Default playful fallback distractors (bilingual support)
+    const cuteFallbacksEn = [
+      "A magic sleeping banana! 🍌",
+      "Chef Barnaby Bear's secret honey cake! 🐻",
+      "A cute little dancing dinosaur! 🦖",
+      "A flying purple unicorn! 🦄",
+      "Panda's favorite bamboo snack! 🐼",
+      "A spaceship made of yellow cheese! 🧀",
+      "A magic wizard's candy spell! 🪄"
+    ];
+
+    const cuteFallbacksBn = [
+      "একটি জাদু ঘুমান্ত কলা! 🍌",
+      "শেফ বার্নাবির সিক্রেট মধু কেক! 🐻",
+      "একটি ছোট্ট নাচুরে ডাইনোসর! 🦖",
+      "একটি উড়ন্ত বেগুনি ইউনিকর্ন! 🦄",
+      "পান্ডা বাডির প্রিয় মিষ্টি বাঁশ! 🐼",
+      "পনির দিয়ে তৈরি জাদুকরী রকেট! 🧀",
+      "যাদুকরের মিষ্টি চকোলেট স্পেল! 🪄"
+    ];
+
+    const fallbacks = appLanguage === "bn" ? cuteFallbacksBn : cuteFallbacksEn;
+    const fallbackPool = [...fallbacks];
+
+    while (distractors.length < 3 && fallbackPool.length > 0) {
+      const randomIndex = Math.floor(Math.random() * fallbackPool.length);
+      const chosen = fallbackPool.splice(randomIndex, 1)[0];
+      if (!distractors.includes(chosen)) {
+        distractors.push(chosen);
+      }
+    }
+
+    const allOptions = [correctAnswer, ...distractors.slice(0, 3)];
+    // Shuffle options
+    const shuffled = allOptions.sort(() => Math.random() - 0.5);
+    
+    setShuffledMcqOptions(shuffled);
+    setSelectedMcqOption(null);
+    setIsMcqAnswered(false);
+  }, [currentCardIndex, quizMode, activeGuide, appLanguage]);
+
+  const handleMcqSelect = (option: string) => {
+    if (isMcqAnswered) return;
+    setSelectedMcqOption(option);
+    setIsMcqAnswered(true);
+    
+    const currentCard = activeGuide?.flashcards[currentCardIndex];
+    if (!currentCard) return;
+    
+    const isCorrect = option === currentCard.answer;
+    
+    if (isCorrect) {
+      handleCardStatus("correct");
+    } else {
+      handleCardStatus("review");
+    }
   };
 
   const handleCardStatus = (status: "correct" | "review") => {
@@ -1506,8 +1805,15 @@ export default function StudyGuideApp() {
       return prev;
     });
 
-    // Auto advance card after short delay
-    if (currentCardIndex < activeGuide.flashcards.length - 1) {
+    // SYNC TO DATABASE
+    if (profile && activeGuide) {
+      const totalCards = activeGuide.flashcards?.length || 1;
+      const masteryPercent = Math.round((masteredCount / totalCards) * 100);
+      updateMasteryStat(profile.id, activeGuide.topicName, masteryPercent);
+    }
+
+    // Auto advance card after short delay (only in flashcard mode)
+    if (quizMode === "flashcard" && currentCardIndex < activeGuide.flashcards.length - 1) {
       setTimeout(() => {
         setIsCardFlipped(false);
         setCurrentCardIndex((prev) => prev + 1);
@@ -1999,183 +2305,518 @@ export default function StudyGuideApp() {
         </AnimatePresence>
 
         {activeGuide ? (
-          <div className="flex-1 flex flex-col h-full overflow-hidden">
+          <div className={`flex-1 flex flex-col h-full overflow-hidden ${isFocusMode ? "fixed inset-0 z-50 bg-[#060a12] pb-10" : ""}`}>
             
-            {/* WORKSPACE HEADER & TABS */}
-            <header className="p-6 border-b dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white shrink-0 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-              <div className="flex flex-col md:flex-row md:items-start gap-3 flex-1">
-                <button
-                  onClick={() => setSidebarOpen(!sidebarOpen)}
-                  className="hidden md:flex p-2 rounded-lg bg-slate-100 dark:bg-[#0c1221] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 border dark:border-white/5 border-slate-200 shrink-0"
-                  title="Toggle study library sidebar"
-                >
-                  <Compass className="w-4 h-4 text-emerald-400" />
-                </button>
-                <div className="text-left">
-                  <span className="text-[10px] font-mono font-bold text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">Active Study Set</span>
-                  <h2 className="text-lg md:text-xl font-bold text-slate-800 dark:text-white tracking-tight mt-0.5 leading-snug">{activeGuide.topicName}</h2>
-                  
-                  {/* TAG LIST AND ADD TAG */}
-                  <div className="flex flex-wrap items-center gap-1.5 mt-2 max-w-xl text-left">
-                    {activeGuide.tags && activeGuide.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/5 text-slate-500 dark:text-slate-400"
-                      >
-                        <Tag className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
-                        <span>{tag}</span>
-                        <button
-                          onClick={() => handleRemoveTag(tag)}
-                          className="hover:text-red-400 font-bold ml-0.5 shrink-0"
-                          title={`Remove tag ${tag}`}
-                        >
-                          &times;
-                        </button>
-                      </span>
-                    ))}
-
-                    {showTagInput ? (
-                      <div className="flex items-center gap-1" id="add_tag_inline_form">
-                        <input
-                          type="text"
-                          placeholder="New tag..."
-                          value={newTagInput}
-                          onChange={(e) => setNewTagInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              handleAddTag(newTagInput);
-                            } else if (e.key === "Escape") {
-                              setShowTagInput(false);
-                            }
-                          }}
-                          className="px-2 py-0.5 text-[10px] rounded border dark:border-white/10 dark:bg-[#070b14] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 w-20"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => handleAddTag(newTagInput)}
-                          className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold"
-                        >
-                          Add
-                        </button>
-                        <button
-                          onClick={() => setShowTagInput(false)}
-                          className="text-[10px] text-slate-500 font-bold px-1"
-                        >
-                          &times;
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setShowTagInput(true)}
-                        className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 cursor-pointer"
-                      >
-                        <Plus className="w-2.5 h-2.5" /> Tag
-                      </button>
-                    )}
-                  </div>
+            {isFocusMode ? (
+              <div className="p-4 bg-[#0a0f1d] border-b dark:border-white/5 border-slate-200 flex justify-between items-center px-8 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-xs font-mono font-bold tracking-widest text-slate-400 uppercase">Focus Mode Active • 🎯 {focusPoints} Focus Points</span>
                 </div>
-              </div>
-
-              {/* TIMER & MUSIC (SIMPLIFIED FOR KIDS) */}
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 shrink-0">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-2xl font-bold font-mono border border-indigo-500/20">
-                    <Clock className="w-4 h-4 mr-2" />
-                    <span>{String(timerMinutes).padStart(2, "0")}:{String(timerSeconds).padStart(2, "0")}</span>
-                    <button onClick={() => setTimerIsRunning(!timerIsRunning)} className="ml-2 bg-indigo-500 text-white rounded-full p-1 transition-transform hover:scale-110 active:scale-95">
-                      {timerIsRunning ? <Pause className="w-3 h-3"/> : <Play className="w-3 h-3"/>}
-                    </button>
-                    <button onClick={() => {
-                        setTimerIsRunning(false);
-                        setTimerSeconds(0);
-                        if (timerMode === "focus") setTimerMinutes(timerDuration);
-                        else setTimerMinutes(5);
-                      }} className="ml-1 text-indigo-400 hover:text-indigo-600 p-1 transition-transform hover:rotate-180 duration-300">
-                      <RotateCcw className="w-3 h-3" />
-                    </button>
+                <div className="flex items-center gap-6">
+                  {/* Slow, serene breathing bubble */}
+                  <div className="flex items-center gap-2 text-xs text-indigo-400 font-medium">
+                    <span className="animate-bounce">🧘</span>
+                    <span className="font-mono text-slate-300">Deep breaths... Focus solely on today&apos;s study set.</span>
                   </div>
-                  
-                  <select
-                    value={ambientSound}
-                    onChange={(e) => {
-                      const sound = e.target.value as any;
-                      handleSelectAmbient(sound);
-                    }}
-                    className="font-bold py-1.5 pl-3 pr-8 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm cursor-pointer appearance-none"
-                    style={{ backgroundImage: "url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23d97706%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E')", backgroundRepeat: "no-repeat", backgroundPosition: "right .7rem top 50%", backgroundSize: ".65rem auto" }}
-                  >
-                    <option value="none">{appLanguage === "en" ? "🤫 No Music" : "🤫 নীরব"}</option>
-                    <option value="rainforest">{appLanguage === "en" ? "🌧️ Rainforest" : "🌧️ বৃষ্টি বন"}</option>
-                    <option value="library">{appLanguage === "en" ? "📚 Library" : "📚 লাইব্রেরি"}</option>
-                    <option value="lofi">{appLanguage === "en" ? "🎵 Lofi Beats" : "🎵 লো-ফাই বিট"}</option>
-                  </select>
-
                   <button
-                    onClick={handleToggleTheme}
-                    className="p-2 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-[#0c1221] dark:hover:bg-[#11192e] text-amber-500 dark:text-yellow-400 border border-slate-200 dark:border-white/5 transition-all shadow-sm flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95"
-                    title={isDarkMode ? "Switch to daylight light mode" : "Switch to starry dark mode"}
-                    id="global_theme_toggle_btn"
+                    onClick={() => {
+                      setIsFocusMode(false);
+                      setFocusPoints((p) => {
+                        const next = p + 5;
+                        localStorage.setItem("skill_focus_points", next.toString());
+                        return next;
+                      });
+                    }}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer"
                   >
-                    {isDarkMode ? (
-                      <Sun className="w-4 h-4 text-yellow-400" />
-                    ) : (
-                      <Moon className="w-4 h-4 text-indigo-600" />
-                    )}
+                    Exit Focus Mode 🚪
                   </button>
                 </div>
               </div>
-            </header>
-
-            {/* TOP NAVIGATION DOCK (MOVED TO TOP) */}
-            <div className="bg-white dark:bg-[#080d19] border-b dark:border-white/5 border-slate-200 p-2 md:p-3 shrink-0 flex justify-center z-40 w-full shadow-sm sticky top-0">
-              <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-1 max-w-full w-full justify-start md:justify-center no-scrollbar px-2">
-                  {([
-                    { id: "feynman", label: t.feynmanDeconstruction, icon: Lightbulb, color: "text-amber-500", bg: "bg-amber-500/10" },
-                    { id: "mindmap", label: t.mindmap, icon: Compass, color: "text-blue-500", bg: "bg-blue-500/10" },
-                    { id: "flashcards", label: t.flashcards, icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-                    { id: "clarifier", label: t.clarifier, icon: HelpCircle, color: "text-purple-500", bg: "bg-purple-500/10" },
-                    { id: "voiceChat", label: t.voiceChat, icon: Mic, color: "text-rose-500", bg: "bg-rose-500/10" },
-                    { id: "dashboard", label: t.dashboard, icon: BarChart2, color: "text-indigo-500", bg: "bg-indigo-500/10" },
-                    { id: "parents", label: t.parentsCorner, icon: Sliders, color: "text-pink-500", bg: "bg-pink-500/10" }
-                  ] as const).map((tab) => {
-                    const Icon = tab.icon;
-                    const isSelected = activeTab === tab.id;
-                    const isChatTab = tab.id === "clarifier" || tab.id === "voiceChat";
-
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setActiveTab(tab.id as any)}
-                        className={`relative flex flex-col items-center justify-center gap-1 p-1.5 sm:px-4 sm:py-2.5 rounded-[16px] transition-transform active:scale-95 shrink-0 cursor-pointer min-w-[70px] sm:min-w-[90px] z-10 ${
-                          isSelected
-                            ? "text-slate-900 dark:text-white"
-                            : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
-                        }`}
-                        id={`tab_btn_${tab.id}`}
-                      >
-                        {isSelected && (
-                          <motion.div
-                            layoutId="activeTabIndicatorTop"
-                            className={`absolute inset-0 ${tab.bg} rounded-[16px] border border-black/5 dark:border-white/5 shadow-sm`}
-                            initial={false}
-                            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                          />
-                        )}
-                        <span className="relative z-10 flex flex-col items-center gap-1">
-                          <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${isSelected ? tab.color : ""} ${isChatTab && !isSelected ? "animate-pulse" : ""}`} />
-                          <span className={`text-[9px] sm:text-[11px] font-bold font-heading ${isSelected ? "opacity-100" : "opacity-70"} text-center leading-tight max-w-[80px]`}>
-                            {tab.label}
+            ) : (
+              <>
+                {/* WORKSPACE HEADER & TABS */}
+                <header className="p-6 border-b dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white shrink-0 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                  <div className="flex flex-col md:flex-row md:items-start gap-3 flex-1">
+                    <button
+                      onClick={() => setSidebarOpen(!sidebarOpen)}
+                      className="hidden md:flex p-2 rounded-lg bg-slate-100 dark:bg-[#0c1221] text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 border dark:border-white/5 border-slate-200 shrink-0"
+                      title="Toggle study library sidebar"
+                    >
+                      <Compass className="w-4 h-4 text-emerald-400" />
+                    </button>
+                    <div className="text-left">
+                      <span className="text-[10px] font-mono font-bold text-emerald-500 dark:text-emerald-400 uppercase tracking-widest">Active Study Set</span>
+                      <h2 className="text-lg md:text-xl font-bold text-slate-800 dark:text-white tracking-tight mt-0.5 leading-snug">{activeGuide.topicName}</h2>
+                      
+                      {/* TAG LIST AND ADD TAG */}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2 max-w-xl text-left">
+                        {activeGuide.tags && activeGuide.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-white/5 text-slate-500 dark:text-slate-400"
+                          >
+                            <Tag className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+                            <span>{tag}</span>
+                            <button
+                              onClick={() => handleRemoveTag(tag)}
+                              className="hover:text-red-400 font-bold ml-0.5 shrink-0"
+                              title={`Remove tag ${tag}`}
+                            >
+                              &times;
+                            </button>
                           </span>
-                        </span>
+                        ))}
+
+                        {showTagInput ? (
+                          <div className="flex items-center gap-1" id="add_tag_inline_form">
+                            <input
+                              type="text"
+                              placeholder="New tag..."
+                              value={newTagInput}
+                              onChange={(e) => setNewTagInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") {
+                                  handleAddTag(newTagInput);
+                                } else if (e.key === "Escape") {
+                                  setShowTagInput(false);
+                                }
+                              }}
+                              className="px-2 py-0.5 text-[10px] rounded border dark:border-white/10 dark:bg-[#070b14] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 w-20"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => handleAddTag(newTagInput)}
+                              className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[10px] font-bold"
+                            >
+                              Add
+                            </button>
+                            <button
+                              onClick={() => setShowTagInput(false)}
+                              className="text-[10px] text-slate-500 font-bold px-1"
+                            >
+                              &times;
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setShowTagInput(true)}
+                            className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-2.5 h-2.5" /> Tag
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* TIMER & MUSIC (SIMPLIFIED FOR KIDS) */}
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-2xl font-bold font-mono border border-indigo-500/20">
+                        <Clock className="w-4 h-4 mr-2" />
+                        <span>{String(timerMinutes).padStart(2, "0")}:{String(timerSeconds).padStart(2, "0")}</span>
+                        <button onClick={() => setTimerIsRunning(!timerIsRunning)} className="ml-2 bg-indigo-500 text-white rounded-full p-1 transition-transform hover:scale-110 active:scale-95">
+                          {timerIsRunning ? <Pause className="w-3 h-3"/> : <Play className="w-3 h-3"/>}
+                        </button>
+                        <button onClick={() => {
+                            setTimerIsRunning(false);
+                            setTimerSeconds(0);
+                            if (timerMode === "focus") setTimerMinutes(timerDuration);
+                            else setTimerMinutes(5);
+                          }} className="ml-1 text-indigo-400 hover:text-indigo-600 p-1 transition-transform hover:rotate-180 duration-300">
+                          <RotateCcw className="w-3 h-3" />
+                        </button>
+                      </div>
+                      
+                      <select
+                        value={ambientSound}
+                        onChange={(e) => {
+                          const sound = e.target.value as any;
+                          handleSelectAmbient(sound);
+                        }}
+                        className="font-bold py-1.5 pl-3 pr-8 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm cursor-pointer appearance-none"
+                        style={{ backgroundImage: "url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23d97706%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E')", backgroundRepeat: "no-repeat", backgroundPosition: "right .7rem top 50%", backgroundSize: ".65rem auto" }}
+                      >
+                        <option value="none">{appLanguage === "en" ? "🤫 No Music" : "🤫 নীরব"}</option>
+                        <option value="rainforest">{appLanguage === "en" ? "🌧️ Rainforest" : "🌧️ বৃষ্টি বন"}</option>
+                        <option value="library">{appLanguage === "en" ? "📚 Library" : "📚 লাইব্রেরি"}</option>
+                        <option value="lofi">{appLanguage === "en" ? "🎵 Lofi Beats" : "🎵 লো-ফাই বিট"}</option>
+                      </select>
+
+                      <button
+                        onClick={handleToggleTheme}
+                        className="p-2 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-[#0c1221] dark:hover:bg-[#11192e] text-amber-500 dark:text-yellow-400 border border-slate-200 dark:border-white/5 transition-all shadow-sm flex items-center justify-center cursor-pointer hover:scale-105 active:scale-95"
+                        title={isDarkMode ? "Switch to daylight light mode" : "Switch to starry dark mode"}
+                        id="global_theme_toggle_btn"
+                      >
+                        {isDarkMode ? (
+                          <Sun className="w-4 h-4 text-yellow-400" />
+                        ) : (
+                          <Moon className="w-4 h-4 text-indigo-600" />
+                        )}
                       </button>
-                    );
-                  })}
-              </div>
-            </div>
+                    </div>
+                  </div>
+                </header>
+
+                {/* TOP NAVIGATION DOCK (MOVED TO TOP) */}
+                <div className="bg-white dark:bg-[#080d19] border-b dark:border-white/5 border-slate-200 p-2 md:p-3 shrink-0 flex justify-center z-40 w-full shadow-sm sticky top-0">
+                  <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-1 max-w-full w-full justify-start md:justify-center no-scrollbar px-2">
+                      {([
+                        { id: "feynman", label: t.feynmanDeconstruction, icon: Lightbulb, color: "text-amber-500", bg: "bg-amber-500/10" },
+                        { id: "mindmap", label: t.mindmap, icon: Compass, color: "text-blue-500", bg: "bg-blue-500/10" },
+                        { id: "flashcards", label: t.flashcards, icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+                        { id: "clarifier", label: t.clarifier, icon: HelpCircle, color: "text-purple-500", bg: "bg-purple-500/10" },
+                        { id: "voiceChat", label: t.voiceChat, icon: Mic, color: "text-rose-500", bg: "bg-rose-500/10" },
+                        { id: "dashboard", label: t.dashboard, icon: BarChart2, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+                        { id: "messages", label: t.messages, icon: MessageSquare, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+                        { id: "parents", label: t.parentsCorner, icon: Sliders, color: "text-pink-500", bg: "bg-pink-500/10" }
+                      ] as const).map((tab) => {
+                        const Icon = tab.icon;
+                        const isSelected = activeTab === tab.id;
+                        const isChatTab = tab.id === "clarifier" || tab.id === "voiceChat";
+
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`relative flex flex-col items-center justify-center gap-1 p-1.5 sm:px-4 sm:py-2.5 rounded-[16px] transition-transform active:scale-95 shrink-0 cursor-pointer min-w-[70px] sm:min-w-[90px] z-10 ${
+                              isSelected
+                                ? "text-slate-900 dark:text-white"
+                                : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                            }`}
+                            id={`tab_btn_${tab.id}`}
+                          >
+                            {isSelected && (
+                              <motion.div
+                                layoutId="activeTabIndicatorTop"
+                                className={`absolute inset-0 ${tab.bg} rounded-[16px] border border-black/5 dark:border-white/5 shadow-sm`}
+                                initial={false}
+                                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                              />
+                            )}
+                            <span className="relative z-10 flex flex-col items-center gap-1">
+                              <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${isSelected ? tab.color : ""} ${isChatTab && !isSelected ? "animate-pulse" : ""}`} />
+                              <span className={`text-[9px] sm:text-[11px] font-bold font-heading ${isSelected ? "opacity-100" : "opacity-70"} text-center leading-tight max-w-[80px]`}>
+                                {tab.label}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+              </>
+            )}
 
             {/* TAB CONTAINER CONTENT */}
             <div className="flex-1 overflow-y-auto p-6 md:p-8">
+              {!isFocusMode && (
+                <div className="mb-8 max-w-4xl mx-auto p-6 rounded-3xl bg-gradient-to-br from-[#0c1221] to-[#070b14] border border-white/5 shadow-2xl relative overflow-hidden text-left">
+                  {/* Glowing background highlights */}
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+                  <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+                  
+                  {/* Top Header: Title and Preferences Sync */}
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-white/5">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
+                        <span>Socratic Learning & Skill Academy</span>
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">Progress through levels of active recall by teaching, creating, and remembering.</p>
+                    </div>
+                    
+                    {/* Sync button & Focus Mode Launcher */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => {
+                          if (typeof window !== "undefined") {
+                            localStorage.setItem("skill_focus_points", focusPoints.toString());
+                            localStorage.setItem("skill_memory_mastery", memoryMastery.toString());
+                            localStorage.setItem("skill_grit_gems", gritGems.toString());
+                            localStorage.setItem("feynman_voice_persona", socraticPersona);
+                            alert("☁️ Study Preferences & Skill Tree Synced successfully with Cloud Backup!");
+                          }
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/5 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-sm"
+                        title="Sync learning settings to cloud database"
+                      >
+                        <span>☁️ Sync Preferences</span>
+                      </button>
+
+                      <button
+                        onClick={() => setIsFocusMode(true)}
+                        className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md hover:scale-105"
+                        title="Start a noise-free, high-inhibitory focus session"
+                      >
+                        <span>🎯 Start Focus Mode</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Grid of Metrics, Socratic Levels, and Character */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                    
+                    {/* 1. Skill Tree (4 columns) */}
+                    <div className="lg:col-span-4 space-y-4">
+                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-2">My Skill Tree Achievements</p>
+                      
+                      {/* Focus Points */}
+                      <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between group hover:bg-indigo-500/5 hover:border-indigo-500/20 transition-all">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform">
+                            🎯
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-200">Focus Points</p>
+                            <p className="text-[9px] text-slate-500">Earned via distraction-free study</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-extrabold font-mono text-indigo-400">{focusPoints} XP</span>
+                        </div>
+                      </div>
+
+                      {/* Memory Mastery */}
+                      <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between group hover:bg-emerald-500/5 hover:border-emerald-500/20 transition-all">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform">
+                            🧠
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-200">Memory Mastery</p>
+                            <p className="text-[9px] text-slate-500">Earned from perfect flashcards</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-extrabold font-mono text-emerald-400">{memoryMastery} MP</span>
+                        </div>
+                      </div>
+
+                      {/* Grit Gems */}
+                      <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between group hover:bg-amber-500/5 hover:border-amber-500/20 transition-all">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform">
+                            💎
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-200">Grit Gems</p>
+                            <p className="text-[9px] text-slate-500">Earned via Feynman answers</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-extrabold font-mono text-amber-400">{gritGems} GG</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 2. Level Progression Nodes (5 columns) */}
+                    <div className="lg:col-span-5 flex flex-col justify-between">
+                      <div>
+                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-2">Cognitive Mastery Path</p>
+                        
+                        {/* Interactive Level Path */}
+                        <div className="flex items-center justify-between mt-4 px-2 relative">
+                          {/* Linking track lines */}
+                          <div className="absolute top-4 left-6 right-6 h-1 bg-slate-800 z-0" />
+                          <div className={`absolute top-4 left-6 h-1 bg-gradient-to-r from-indigo-500 to-emerald-500 z-0 transition-all duration-500`} 
+                               style={{ width: selectedStudyLevel === 1 ? '0%' : selectedStudyLevel === 2 ? '50%' : '100%' }} />
+
+                          {/* Node 1: Explorer */}
+                          <button
+                            onClick={() => {
+                              setSelectedStudyLevel(1);
+                              setActiveTab("flashcards");
+                            }}
+                            className="relative z-10 flex flex-col items-center group focus:outline-none"
+                          >
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-xs transition-all ${
+                              selectedStudyLevel === 1 
+                                ? 'bg-indigo-600 text-white shadow-lg ring-4 ring-indigo-500/30 scale-110' 
+                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                            }`}>
+                              1
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-300 mt-2">Explorer</span>
+                            <span className="text-[8px] text-slate-500">Flashcard Quiz</span>
+                          </button>
+
+                          {/* Node 2: Explainer */}
+                          <button
+                            onClick={() => {
+                              setSelectedStudyLevel(2);
+                              setActiveTab("feynman");
+                            }}
+                            className="relative z-10 flex flex-col items-center group focus:outline-none"
+                          >
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-xs transition-all ${
+                              selectedStudyLevel === 2 
+                                ? 'bg-emerald-600 text-white shadow-lg ring-4 ring-emerald-500/30 scale-110' 
+                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                            }`}>
+                              2
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-300 mt-2">Explainer</span>
+                            <span className="text-[8px] text-slate-500">Feynman Socratic</span>
+                          </button>
+
+                          {/* Node 3: Creator */}
+                          <button
+                            onClick={() => {
+                              setSelectedStudyLevel(3);
+                              setActiveTab("mindmap");
+                            }}
+                            className="relative z-10 flex flex-col items-center group focus:outline-none"
+                          >
+                            <div className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-xs transition-all ${
+                              selectedStudyLevel === 3 
+                                ? 'bg-amber-600 text-white shadow-lg ring-4 ring-amber-500/30 scale-110' 
+                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                            }`}>
+                              3
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-300 mt-2">Creator</span>
+                            <span className="text-[8px] text-slate-500">Mind Map Builder</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Quick tip on selected level */}
+                      <div className="mt-4 p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 text-xs text-slate-400 text-left">
+                        {selectedStudyLevel === 1 && (
+                          <p>⭐ **Level 1 (Explorer)**: Solidify core terms by tackling generative recall riddles. Get 5 correct in a row to boost **Memory Mastery**!</p>
+                        )}
+                        {selectedStudyLevel === 2 && (
+                          <p>🔥 **Level 2 (Explainer)**: Explain the concept in simple words to your chosen Socratic character. Earn **Grit Gems** for deeper responses!</p>
+                        )}
+                        {selectedStudyLevel === 3 && (
+                          <p>🌳 **Level 3 (Creator)**: Complete nodes of the interactive knowledge tree. Practicing layout design strengthens visual working memory!</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 3. Socratic Companion (3 columns) */}
+                    <div className="lg:col-span-3 flex flex-col justify-between p-4 rounded-2xl bg-white/[0.02] border border-white/5">
+                      <div className="text-center flex-1 flex flex-col justify-center">
+                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2">My Socratic Bot</p>
+                        
+                        {/* Dynamic Avatar display */}
+                        <div className="w-12 h-12 rounded-full bg-slate-800 mx-auto flex items-center justify-center text-2xl shadow-md border border-emerald-500/20">
+                          {socraticPersona === "Oak" && "👨‍🏫"}
+                          {socraticPersona === "Alien" && "👽"}
+                          {socraticPersona === "Dino" && "🦖"}
+                          {socraticPersona === "Unicorn" && "🦄"}
+                        </div>
+                        
+                        <p className="text-xs font-bold text-slate-200 mt-2">
+                          {socraticPersona === "Oak" && "Prof. Oak"}
+                          {socraticPersona === "Alien" && "Zorg the Alien"}
+                          {socraticPersona === "Dino" && "Barnaby the Dino"}
+                          {socraticPersona === "Unicorn" && "Sparkles Unicorn"}
+                        </p>
+                        
+                        <p className="text-[10px] text-slate-500 mt-1 italic leading-tight">
+                          {socraticPersona === "Oak" && "Wise, comforting teacher."}
+                          {socraticPersona === "Alien" && "Curious explorer of Earth!"}
+                          {socraticPersona === "Dino" && "Playful dino burger chef."}
+                          {socraticPersona === "Unicorn" && "Joyful, sparkles rainbows."}
+                        </p>
+                      </div>
+
+                      {/* Mini Persona Selector Buttons */}
+                      <div className="grid grid-cols-4 gap-1 mt-3">
+                        {(["Oak", "Alien", "Dino", "Unicorn"] as const).map((pers) => (
+                          <button
+                            key={pers}
+                            onClick={() => {
+                              setSocraticPersona(pers);
+                              localStorage.setItem("feynman_voice_persona", pers);
+                            }}
+                            className={`p-1 rounded-lg text-xs hover:scale-105 transition-all flex items-center justify-center border cursor-pointer ${
+                              socraticPersona === pers 
+                                ? "bg-emerald-500/15 border-emerald-500 text-white" 
+                                : "bg-slate-900 border-transparent text-slate-500 hover:text-slate-300"
+                            }`}
+                            title={`Study with ${pers}`}
+                          >
+                            {pers === "Oak" && "👨‍🏫"}
+                            {pers === "Alien" && "👽"}
+                            {pers === "Dino" && "🦖"}
+                            {pers === "Unicorn" && "🦄"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              )}
+              {pushedAssignment && (
+                <div className="mb-6 max-w-4xl mx-auto p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-indigo-500/10 to-[#0a0f1d] border border-emerald-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-bounce-subtle">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center animate-pulse">
+                      <Sparkles className="w-5 h-5 text-emerald-400" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-200 text-sm">Real-time Study Assigned! ✨</h4>
+                      <p className="text-xs text-slate-400">Your parent or teacher recommends studying: <span className="font-bold text-emerald-400">&quot;{pushedAssignment}&quot;</span></p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={async () => {
+                        const existing = guides.find(g => g.topicName.toLowerCase() === pushedAssignment.toLowerCase());
+                        if (existing) {
+                          setActiveGuide(existing);
+                          setActiveTab("feynman");
+                        } else {
+                          setNewTopic(pushedAssignment);
+                          setIsGenerating(true);
+                          setGenerationStep(0);
+                          setGenerationError("");
+                          try {
+                            const response = await fetch("/api/gemini", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                action: "generate",
+                                topic: pushedAssignment,
+                                context: "Recommended by educator/parent.",
+                                language: appLanguage,
+                                apiConfig: getApiConfigForFetch(),
+                              }),
+                            });
+                            if (!response.ok) throw new Error("Failed to generate");
+                            const result = await response.json();
+                            const newGuide = result.studyGuide;
+                            setGuides(prev => [newGuide, ...prev]);
+                            setActiveGuide(newGuide);
+                            setActiveTab("feynman");
+                          } catch (err: any) {
+                            alert(`Could not generate guide: ${err.message || 'Error'}`);
+                          } finally {
+                            setIsGenerating(false);
+                          }
+                        }
+                        setPushedAssignment("");
+                      }}
+                      className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer"
+                    >
+                      Start Learning Now 🚀
+                    </button>
+                    <button 
+                      onClick={() => setPushedAssignment("")}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              )}
               <AnimatePresence mode="wait">
                 
                 {/* TAB 1: FEYNMAN DECONSTRUCTION */}
@@ -2557,7 +3198,7 @@ export default function StudyGuideApp() {
                                         transition={{ duration: 0.15 }}
                                         className="grid grid-cols-1 md:grid-cols-2 gap-4"
                                       >
-                                        {currentChapter.briefSummary.split("\n").filter(line => line.trim()).map((bullet, idx) => (
+                                        {(Array.isArray(currentChapter.briefSummary) ? currentChapter.briefSummary : String(currentChapter.briefSummary || "").split("\n")).filter((line: string) => line.trim()).map((bullet: string, idx: number) => (
                                           <div key={idx} className="p-5 rounded-2xl border border-slate-200 dark:border-white/5 dark:bg-[#070b13] bg-slate-50/50 text-left flex gap-4 items-start shadow-sm">
                                             <span className="text-2xl shrink-0 mt-0.5">⭐</span>
                                             <p className="text-sm md:text-md text-black dark:text-slate-100 font-semibold leading-relaxed whitespace-pre-wrap">
@@ -3477,31 +4118,54 @@ export default function StudyGuideApp() {
                             <span>{t.cardNumber} {currentCardIndex + 1} / {activeGuide.flashcards.length}</span>
                             <button
                               onClick={resetFlashcards}
-                              className="flex items-center gap-1 text-[11px] hover:text-emerald-400 text-slate-500 uppercase tracking-wider font-bold"
+                              className="flex items-center gap-1 text-[11px] hover:text-emerald-400 text-slate-500 uppercase tracking-wider font-bold cursor-pointer"
                             >
                               <RotateCw className="w-3 h-3" /> {t.resetDeck}
                             </button>
                           </div>
 
-                          {/* Flippable Card Container */}
-                          <div 
-                            className="relative h-[240px] cursor-pointer perspective-1000 select-none group"
-                            onClick={() => setIsCardFlipped(!isCardFlipped)}
-                            id="flashcard_interactive_box"
-                          >
-                            <div className={`relative w-full h-full transform-style-3d transition-transform duration-500 ${isCardFlipped ? "rotate-y-180" : ""}`}>
-                              
-                              {/* Front Side */}
-                              <div className="absolute inset-0 w-full h-full p-6 md:p-8 rounded-2xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white flex flex-col justify-between shadow-xl backface-hidden text-left">
-                                <div className="flex justify-between items-center">
+                          {/* Mode Toggle (Flashcards vs MCQ Quiz) */}
+                          <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl dark:bg-[#0c1221] bg-slate-100 border dark:border-white/5 border-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setQuizMode("flashcard");
+                                setIsCardFlipped(false);
+                              }}
+                              className={`py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                quizMode === "flashcard"
+                                  ? "bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow"
+                                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                              }`}
+                            >
+                              {appLanguage === "en" ? "🃏 Riddle Flashcards" : "🃏 ধাঁধার কার্ড"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setQuizMode("mcq");
+                                setIsCardFlipped(false);
+                              }}
+                              className={`py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                quizMode === "mcq"
+                                  ? "bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow"
+                                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                              }`}
+                            >
+                              {appLanguage === "en" ? "📝 Multiple Choice Quiz" : "📝 বহুনির্বাচনী কুইজ"}
+                            </button>
+                          </div>
+
+                          {quizMode === "mcq" ? (
+                            <div className="space-y-4" id="mcq_quiz_box">
+                              {/* MCQ Card Container */}
+                              <div className="p-6 md:p-8 rounded-2xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white flex flex-col justify-between shadow-xl text-left relative overflow-hidden">
+                                <div className="flex justify-between items-center mb-4">
                                   <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-500 dark:text-emerald-400 font-bold">
-                                    {t.questionSide}
+                                    {appLanguage === "en" ? "Quiz Question" : "কুইজের প্রশ্ন"}
                                   </span>
                                   <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      speakText(activeGuide.flashcards[currentCardIndex]?.question);
-                                    }}
+                                    onClick={() => speakText(activeGuide.flashcards[currentCardIndex]?.question)}
                                     className={`p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center min-h-[40px] min-w-[40px] ${
                                       isSpeaking && spokenText === activeGuide.flashcards[currentCardIndex]?.question
                                         ? "bg-emerald-600 text-white animate-pulse shadow-md"
@@ -3512,73 +4176,169 @@ export default function StudyGuideApp() {
                                     <Volume2 className="w-4 h-4" />
                                   </button>
                                 </div>
-                                <div className="flex-1 flex items-center justify-center py-4">
-                                  <p className="text-sm md:text-md font-bold text-slate-800 dark:text-white text-center leading-normal">
-                                    {activeGuide.flashcards[currentCardIndex]?.question}
-                                  </p>
-                                </div>
-                                <span className="text-[10px] text-center text-slate-500 font-mono">
-                                  {t.flipInstruction}
-                                </span>
+                                
+                                <p className="text-sm md:text-md font-bold text-slate-800 dark:text-white text-center leading-normal py-4 min-h-[60px]">
+                                  {activeGuide.flashcards[currentCardIndex]?.question}
+                                </p>
                               </div>
 
-                              {/* Back Side */}
-                              <div className="absolute inset-0 w-full h-full p-6 md:p-8 rounded-2xl border dark:border-white/10 border-slate-300 dark:bg-[#0f172a] bg-emerald-50 dark:bg-[#0f172a] flex flex-col justify-between shadow-xl backface-hidden rotate-y-180 text-left">
-                                <div className="flex justify-between items-center">
-                                  <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold">
-                                    {t.answerSide}
-                                  </span>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      speakText(activeGuide.flashcards[currentCardIndex]?.answer);
-                                    }}
-                                    className={`p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center min-h-[40px] min-w-[40px] ${
-                                      isSpeaking && spokenText === activeGuide.flashcards[currentCardIndex]?.answer
-                                        ? "bg-emerald-600 text-white animate-pulse shadow-md"
-                                        : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                    }`}
-                                    title="Listen to answer"
-                                  >
-                                    <Volume2 className="w-4 h-4" />
-                                  </button>
-                                </div>
-                                <div className="flex-1 flex items-center justify-center py-4">
-                                  <p className="text-xs md:text-sm text-slate-800 dark:text-slate-200 text-center leading-relaxed font-semibold">
-                                    {activeGuide.flashcards[currentCardIndex]?.answer}
-                                  </p>
-                                </div>
-                                <span className="text-[10px] text-center text-slate-500 dark:text-slate-400 font-mono">
-                                  {t.flipBackInstruction}
-                                </span>
+                              {/* MCQ Options Grid */}
+                              <div className="grid grid-cols-1 gap-3 pt-2">
+                                {shuffledMcqOptions.map((option) => {
+                                  const isSelected = selectedMcqOption === option;
+                                  const isCorrectAnswer = option === activeGuide.flashcards[currentCardIndex]?.answer;
+                                  
+                                  let optionStyle = "border-slate-200 dark:border-white/5 bg-white dark:bg-[#080d19] hover:bg-slate-50 dark:hover:bg-slate-900/30 text-slate-700 dark:text-slate-300";
+                                  
+                                  if (isMcqAnswered) {
+                                    if (isCorrectAnswer) {
+                                      optionStyle = "bg-green-500/15 dark:bg-green-500/20 border-green-500 text-green-600 dark:text-green-400 font-bold shadow-md scale-[1.01]";
+                                    } else if (isSelected) {
+                                      optionStyle = "bg-red-500/15 dark:bg-red-500/20 border-red-500 text-red-600 dark:text-red-400 font-bold shadow-sm";
+                                    } else {
+                                      optionStyle = "opacity-50 border-slate-200 dark:border-white/5 bg-white dark:bg-[#080d19] text-slate-400 dark:text-slate-600";
+                                    }
+                                  }
+
+                                  return (
+                                    <button
+                                      key={option}
+                                      type="button"
+                                      onClick={() => handleMcqSelect(option)}
+                                      disabled={isMcqAnswered}
+                                      className={`w-full p-4 rounded-xl border text-xs text-left transition-all min-h-[52px] flex items-center justify-between cursor-pointer ${optionStyle}`}
+                                    >
+                                      <span className="font-semibold">{option}</span>
+                                      {isMcqAnswered && isCorrectAnswer && (
+                                        <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 ml-2 animate-bounce" />
+                                      )}
+                                      {isMcqAnswered && isSelected && !isCorrectAnswer && (
+                                        <X className="w-4 h-4 text-red-500 shrink-0 ml-2" />
+                                      )}
+                                    </button>
+                                  );
+                                })}
                               </div>
 
+                              {/* MCQ Feedback Message */}
+                              {isMcqAnswered && (
+                                <motion.div
+                                  initial={{ opacity: 0, y: 10 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  className={`p-3.5 rounded-xl border text-xs font-bold leading-normal text-center flex items-center justify-center gap-2 ${
+                                    selectedMcqOption === activeGuide.flashcards[currentCardIndex]?.answer
+                                      ? "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400"
+                                      : "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400"
+                                  }`}
+                                >
+                                  {selectedMcqOption === activeGuide.flashcards[currentCardIndex]?.answer ? (
+                                    <span>🌟 {appLanguage === "en" ? "Correct! You're a superstar! 🏆" : "সঠিক হয়েছে! তুমি একজন সুপারস্টার! 🏆"}</span>
+                                  ) : (
+                                    <span>💪 {appLanguage === "en" ? "Not quite! Let's review this card. You can do it! 🐻" : "হয়নি, চলো পড়াটি আরেকবার রিভিশন দিয়ে নিই! 🐻"}</span>
+                                  )}
+                                </motion.div>
+                              )}
                             </div>
-                          </div>
+                          ) : (
+                            <>
+                              {/* Flippable Card Container */}
+                              <div 
+                                className="relative h-[240px] cursor-pointer perspective-1000 select-none group"
+                                onClick={() => setIsCardFlipped(!isCardFlipped)}
+                                id="flashcard_interactive_box"
+                              >
+                                <div className={`relative w-full h-full transform-style-3d transition-transform duration-500 ${isCardFlipped ? "rotate-y-180" : ""}`}>
+                                  
+                                  {/* Front Side */}
+                                  <div className="absolute inset-0 w-full h-full p-6 md:p-8 rounded-2xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white flex flex-col justify-between shadow-xl backface-hidden text-left">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-500 dark:text-emerald-400 font-bold">
+                                        {t.questionSide}
+                                      </span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          speakText(activeGuide.flashcards[currentCardIndex]?.question);
+                                        }}
+                                        className={`p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center min-h-[40px] min-w-[40px] ${
+                                          isSpeaking && spokenText === activeGuide.flashcards[currentCardIndex]?.question
+                                            ? "bg-emerald-600 text-white animate-pulse shadow-md"
+                                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                        }`}
+                                        title="Listen to question"
+                                      >
+                                        <Volume2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                    <div className="flex-1 flex items-center justify-center py-4">
+                                      <p className="text-sm md:text-md font-bold text-slate-800 dark:text-white text-center leading-normal">
+                                        {activeGuide.flashcards[currentCardIndex]?.question}
+                                      </p>
+                                    </div>
+                                    <span className="text-[10px] text-center text-slate-500 font-mono">
+                                      {t.flipInstruction}
+                                    </span>
+                                  </div>
 
-                          {/* Answer Quality Logging */}
-                          <div className="flex justify-center gap-4">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleCardStatus("review"); }}
-                              className={`flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-bold transition-all cursor-pointer shadow-sm min-h-[48px] w-1/2 md:w-auto ${
-                                cardStatus[currentCardIndex] === "review"
-                                  ? "bg-amber-600 text-white border border-amber-500"
-                                  : "bg-slate-200 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border dark:border-white/5 border-slate-300"
-                              }`}
-                            >
-                              ⚠️ {t.stillReviewing}
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); handleCardStatus("correct"); }}
-                              className={`flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-bold transition-all cursor-pointer shadow-sm min-h-[48px] w-1/2 md:w-auto ${
-                                cardStatus[currentCardIndex] === "correct"
-                                  ? "bg-emerald-600 text-white border border-emerald-500"
-                                  : "bg-slate-200 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border dark:border-white/5 border-slate-300"
-                              }`}
-                            >
-                              <CheckCircle2 className="w-4 h-4 shrink-0" /> {t.memorized}
-                            </button>
-                          </div>
+                                  {/* Back Side */}
+                                  <div className="absolute inset-0 w-full h-full p-6 md:p-8 rounded-2xl border dark:border-white/10 border-slate-300 dark:bg-[#0f172a] bg-emerald-50 dark:bg-[#0f172a] flex flex-col justify-between shadow-xl backface-hidden rotate-y-180 text-left">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 font-bold">
+                                        {t.answerSide}
+                                      </span>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          speakText(activeGuide.flashcards[currentCardIndex]?.answer);
+                                        }}
+                                        className={`p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center min-h-[40px] min-w-[40px] ${
+                                          isSpeaking && spokenText === activeGuide.flashcards[currentCardIndex]?.answer
+                                            ? "bg-emerald-600 text-white animate-pulse shadow-md"
+                                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                        }`}
+                                        title="Listen to answer"
+                                      >
+                                        <Volume2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                    <div className="flex-1 flex items-center justify-center py-4">
+                                      <p className="text-xs md:text-sm text-slate-800 dark:text-slate-200 text-center leading-relaxed font-semibold">
+                                        {activeGuide.flashcards[currentCardIndex]?.answer}
+                                      </p>
+                                    </div>
+                                    <span className="text-[10px] text-center text-slate-500 dark:text-slate-400 font-mono">
+                                      {t.flipBackInstruction}
+                                    </span>
+                                  </div>
+
+                                </div>
+                              </div>
+
+                              {/* Answer Quality Logging */}
+                              <div className="flex justify-center gap-4">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleCardStatus("review"); }}
+                                  className={`flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-bold transition-all cursor-pointer shadow-sm min-h-[48px] w-1/2 md:w-auto ${
+                                    cardStatus[currentCardIndex] === "review"
+                                      ? "bg-amber-600 text-white border border-amber-500"
+                                      : "bg-slate-200 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border dark:border-white/5 border-slate-300"
+                                  }`}
+                                >
+                                  ⚠️ {t.stillReviewing}
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleCardStatus("correct"); }}
+                                  className={`flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-bold transition-all cursor-pointer shadow-sm min-h-[48px] w-1/2 md:w-auto ${
+                                    cardStatus[currentCardIndex] === "correct"
+                                      ? "bg-emerald-600 text-white border border-emerald-500"
+                                      : "bg-slate-200 dark:bg-slate-800/80 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border dark:border-white/5 border-slate-300"
+                                  }`}
+                                >
+                                  <CheckCircle2 className="w-4 h-4 shrink-0" /> {t.memorized}
+                                </button>
+                              </div>
+                            </>
+                          )}
 
                           {/* Navigation Buttons */}
                           <div className="flex justify-between items-center pt-4">
@@ -4057,8 +4817,29 @@ export default function StudyGuideApp() {
                         ];
 
                         return (
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                            {badges.map((badge) => (
+                          <div className="space-y-6">
+                            {/* NEW: Teacher's Desk Section */}
+                            <div className="p-6 rounded-3xl bg-indigo-500/5 border border-indigo-500/20 shadow-xl">
+                               <div className="flex items-center justify-between mb-4">
+                                  <div className="flex items-center gap-2 text-indigo-400">
+                                     <Sparkles className="w-5 h-5" />
+                                     <h4 className="font-bold text-lg">Teacher&apos;s Desk</h4>
+                                  </div>
+                                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Pushed Modules</span>
+                               </div>
+                               <div className="space-y-3">
+                                  {teacherAssignments.length > 0 ? (
+                                    teacherAssignments.map(renderAssignmentCard)
+                                  ) : (
+                                    <div className="p-8 text-center border-2 border-dashed border-slate-800 rounded-3xl">
+                                       <p className="text-sm text-slate-500">No new assignments from your teacher yet.</p>
+                                    </div>
+                                  )}
+                               </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                              {badges.map((badge) => (
                               <div 
                                 key={badge.id}
                                 className={`flex flex-col items-center text-center p-4 rounded-xl border ${
@@ -4077,8 +4858,9 @@ export default function StudyGuideApp() {
                               </div>
                             ))}
                           </div>
-                        );
-                      })()}
+                        </div>
+                      );
+                    })()}
                           </motion.div>
                         )}
                       </AnimatePresence>
@@ -4229,6 +5011,30 @@ export default function StudyGuideApp() {
           </motion.div>
         )}
 
+                {activeTab === "messages" && (
+                  <motion.div
+                    key="messages"
+                    initial={{ opacity: 0, x: 25 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -25 }}
+                    transition={{ duration: 0.25, ease: "easeInOut" }}
+                    className="max-w-5xl mx-auto space-y-6 text-left animate-fade-in"
+                  >
+                    <div className="p-6 md:p-8 rounded-3xl bg-[#0a101f] border border-emerald-500/20 shadow-xl relative overflow-hidden mb-6">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+                      <div className="space-y-2">
+                        <h3 className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">{t.messages}</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {t.messagesSub}
+                        </p>
+                      </div>
+                    </div>
+                    {profile && (
+                      <MessageCenter role="student" userId={profile.id} />
+                    )}
+                  </motion.div>
+                )}
+
                 {activeTab === "parents" && (
                   <motion.div
                     key="parents"
@@ -4263,7 +5069,7 @@ export default function StudyGuideApp() {
                             <button
                               type="button"
                               onClick={() => {
-                                setIsPremium(true);
+                                handleUpgradePremium();
                                 try {
                                   confetti({
                                     particleCount: 120,
@@ -4385,83 +5191,189 @@ export default function StudyGuideApp() {
                       </div>
                     </div>
 
-                      {/* Universal AI API Configuration Card */}
-                      <div className="p-6 rounded-3xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white shadow-xl space-y-5">
-                        <div className="flex items-center gap-3 border-b dark:border-white/5 border-slate-100 pb-3">
-                          <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/25 text-indigo-500 text-lg font-bold">⚙️</div>
-                          <div>
-                            <h4 className="font-extrabold text-slate-800 dark:text-white text-md">Universal AI API Routing</h4>
-                            <p className="text-[11px] text-slate-500">Route your AI study requests through any operator or local model</p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-4">
-                          <div className="space-y-1.5 text-left">
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">AI API Operator / Provider:</label>
-                            <select
-                              value={apiOperator}
-                              onChange={(e) => handleSetApiOperator(e.target.value as any)}
-                              className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                            >
-                              <option value="gemini">Google Gemini (Default or Custom Key)</option>
-                              <option value="openai">OpenAI (Custom Key or Proxy)</option>
-                              <option value="groq">Groq Cloud (Custom Key or Proxy)</option>
-                              <option value="deepseek">DeepSeek AI (Custom Key or Proxy)</option>
-                              <option value="openrouter">OpenRouter (Custom Key or Proxy)</option>
-                              <option value="custom">Custom Endpoint (Ollama / Local LLM / Others)</option>
-                            </select>
-                          </div>
-
-                          <div className="space-y-1.5 text-left">
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">Target AI Model Name:</label>
-                            <input
-                              type="text"
-                              value={apiModel}
-                              onChange={(e) => handleSetApiModel(e.target.value)}
-                              placeholder="e.g. gemini-3.5-flash, gpt-4o-mini, llama-3.3-70b-versatile"
-                              className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
-                            />
-                            <p className="text-[9px] text-slate-500">Specify the model name to request from your chosen operator endpoint.</p>
-                          </div>
-
-                          {apiOperator === "custom" && (
-                            <div className="space-y-1.5 text-left">
-                              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">Custom URL Endpoint:</label>
-                              <input
-                                type="text"
-                                value={apiCustomUrl}
-                                onChange={(e) => handleSetApiCustomUrl(e.target.value)}
-                                placeholder="e.g. http://localhost:11434/v1/chat/completions"
-                                className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
-                              />
-                              <p className="text-[9px] text-slate-500">Provide the full base API endpoint URL of your custom server or Ollama proxy.</p>
-                            </div>
-                          )}
-
-                          {/* API Key field for non-default server use */}
-                          <div className="space-y-1.5 text-left">
-                            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                              Custom API Secret Key (Optional):
-                            </label>
-                            <input
-                              type="password"
-                              value={apiKeyValue}
-                              onChange={(e) => handleSetApiKeyValue(e.target.value)}
-                              placeholder="••••••••••••••••••••••••"
-                              className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
-                            />
-                            <p className="text-[9px] text-slate-500">
-                              {apiOperator === "gemini" 
-                                ? "Optionally provide your own Gemini Key to bypass global project limits."
-                                : `Enter your personal ${apiOperator.toUpperCase()} API key. It is saved securely in your local browser.`}
-                            </p>
-                          </div>
-
-                          <div className="p-3 bg-indigo-500/5 rounded-xl border border-indigo-500/10 text-[10px] text-indigo-600 dark:text-indigo-400 leading-relaxed font-sans text-left">
-                            <strong>Universal Routing Active:</strong> Settings are saved automatically in your browser&apos;s LocalStorage and will proxy safely through server routes to prevent client key leaks.
-                          </div>
+                    {/* Universal AI API Configuration Card */}
+                    <div className="p-6 rounded-3xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white shadow-xl space-y-5">
+                      <div className="flex items-center gap-3 border-b dark:border-white/5 border-slate-100 pb-3">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/25 text-indigo-500 text-lg font-bold">⚙️</div>
+                        <div>
+                          <h4 className="font-extrabold text-slate-800 dark:text-white text-md">Universal AI API Routing</h4>
+                          <p className="text-[11px] text-slate-500">Route your AI study requests through any operator or local model</p>
                         </div>
                       </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-1.5 text-left">
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">AI API Operator / Provider:</label>
+                          <select
+                            value={apiOperator}
+                            onChange={(e) => handleSetApiOperator(e.target.value as any)}
+                            className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
+                          >
+                            <option value="gemini">Google Gemini (Default or Custom Key)</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1.5 text-left">
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">Target AI Model Name:</label>
+                          <input
+                            type="text"
+                            value={apiModel}
+                            onChange={(e) => handleSetApiModel(e.target.value)}
+                            placeholder="e.g. gemini-3.5-flash, gpt-4o-mini, llama-3.3-70b-versatile"
+                            className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                          />
+                          <p className="text-[9px] text-slate-500">Specify the model name to request from your chosen operator endpoint.</p>
+                        </div>
+
+                        {/* API Key field for non-default server use */}
+                        <div className="space-y-1.5 text-left">
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                            Custom API Secret Key (Optional):
+                          </label>
+                          <input
+                            type="password"
+                            value={apiKeyValue}
+                            onChange={(e) => handleSetApiKeyValue(e.target.value)}
+                            placeholder="••••••••••••••••••••••••"
+                            className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+                          />
+                          <p className="text-[9px] text-slate-500">
+                            {apiOperator === "gemini" 
+                              ? "Optionally provide your own Gemini Key to bypass global project limits."
+                              : `Enter your personal ${apiOperator.toUpperCase()} API key. It is saved securely in your local browser.`}
+                          </p>
+                        </div>
+
+                        <div className="p-3 bg-indigo-500/5 rounded-xl border border-indigo-500/10 text-[10px] text-indigo-600 dark:text-indigo-400 leading-relaxed font-sans text-left">
+                          <strong>Universal Routing Active:</strong> Settings are saved automatically in your browser&apos;s LocalStorage and will proxy safely through server routes to prevent client key leaks.
+                        </div>
+
+                        {/* API Status Checker */}
+                        <div className="pt-3 border-t dark:border-white/5 border-slate-100 space-y-3 text-left">
+                          <button
+                            type="button"
+                            onClick={handleCheckApiStatus}
+                            disabled={apiChecking}
+                            className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white font-bold text-xs rounded-xl transition-all shadow flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
+                          >
+                            {apiChecking ? (
+                              <>
+                                <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                                <span>{appLanguage === "en" ? "Testing API Connection..." : "কানেকশন পরীক্ষা করা হচ্ছে..."}</span>
+                              </>
+                            ) : (
+                              <>
+                                <Compass className="w-3.5 h-3.5" />
+                                <span>{appLanguage === "en" ? "🔌 Test API Connection Status" : "🔌 এআই কানেকশন পরীক্ষা করুন"}</span>
+                              </>
+                            )}
+                          </button>
+
+                          {apiCheckStatus && (
+                            <div className={`p-3 rounded-xl border text-[11px] font-sans leading-relaxed ${
+                              apiCheckStatus.success 
+                                ? "bg-green-500/10 border-green-500/20 text-green-600 dark:text-green-400" 
+                                : "bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400"
+                            }`}>
+                              <p className="font-semibold">
+                                {apiCheckStatus.success 
+                                  ? (appLanguage === "en" ? "✅ Connection Successful" : "✅ কানেকশন সফল হয়েছে")
+                                  : (appLanguage === "en" ? "❌ Connection Failed" : "❌ কানেকশন ব্যর্থ হয়েছে")}
+                              </p>
+                              <p className="mt-1 font-mono text-[10px] break-all">{apiCheckStatus.message}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Account Profile & Personalization Card */}
+                    <div className="p-6 rounded-3xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white shadow-xl space-y-5">
+                      <div className="flex items-center gap-3 border-b dark:border-white/5 border-slate-100 pb-3">
+                        <div className="w-9 h-9 rounded-xl bg-teal-500/10 flex items-center justify-center border border-teal-500/25 text-teal-500 text-lg font-bold">👤</div>
+                        <div>
+                          <h4 className="font-extrabold text-slate-800 dark:text-white text-md">
+                            {appLanguage === "en" ? "Account & Profile Settings" : "অ্যাকাউন্ট ও প্রোফাইল সেটিংস"}
+                          </h4>
+                          <p className="text-[11px] text-slate-500">
+                            {appLanguage === "en" ? "Manage display name and preferences saved directly to database" : "ডাটাবেসে সংরক্ষিত ডিসপ্লে নাম ও পছন্দগুলি পরিবর্তন করুন"}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="space-y-1.5 text-left">
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {appLanguage === "en" ? "Display Name:" : "প্রদর্শন নাম:"}
+                          </label>
+                          <input
+                            type="text"
+                            value={profileName}
+                            onChange={(e) => setProfileName(e.target.value)}
+                            className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-[#0d1425] bg-white text-slate-800 dark:text-white focus:outline-none focus:ring-1 focus:ring-teal-500 font-semibold"
+                            placeholder="Enter Display Name"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5 text-left">
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {appLanguage === "en" ? "Email Address (Read-only):" : "ইমেইল এড্রেস (শুধুমাত্র পড়ার জন্য):"}
+                          </label>
+                          <input
+                            type="email"
+                            value={profile?.email || ""}
+                            disabled
+                            className="w-full text-xs p-3 rounded-xl border dark:border-white/5 border-slate-200 bg-slate-50 dark:bg-[#090f1d] text-slate-400 font-mono cursor-not-allowed"
+                          />
+                        </div>
+
+                        <div className="space-y-1.5 text-left">
+                          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                            {appLanguage === "en" ? "User Role:" : "ব্যবহারকারীর ভূমিকা:"}
+                          </label>
+                          <span className="inline-block text-xs font-mono font-bold uppercase px-3 py-1 bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20 rounded-lg">
+                            {profile?.role || "student"}
+                          </span>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!profile) return;
+                            try {
+                              setSavingProfile(true);
+                              await updateUserProfile(profile.id, profileName);
+                              alert(appLanguage === "en" ? "Profile settings updated successfully in Supabase! 🎉" : "সুসংবাদ! প্রোফাইল সেটিংস সুপাবেস ডাটাবেসে সফলভাবে আপডেট করা হয়েছে! 🎉");
+                              try {
+                                confetti({
+                                  particleCount: 80,
+                                  spread: 50,
+                                  origin: { y: 0.6 }
+                                });
+                              } catch(e){}
+                            } catch (err: any) {
+                              alert("Error saving profile: " + err.message);
+                            } finally {
+                              setSavingProfile(false);
+                            }
+                          }}
+                          disabled={savingProfile || !profileName.trim()}
+                          className="w-full py-3 bg-teal-600 hover:bg-teal-500 disabled:bg-slate-700 text-white font-bold text-xs sm:text-sm rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
+                        >
+                          {savingProfile ? (
+                            <>
+                              <RotateCw className="w-4 h-4 animate-spin" />
+                              <span>{appLanguage === "en" ? "Saving..." : "সংরক্ষণ করা হচ্ছে..."}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Check className="w-4 h-4" />
+                              <span>{appLanguage === "en" ? "Save Profile Changes 💾" : "প্রোফাইল পরিবর্তন সংরক্ষণ করুন 💾"}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
 
                     {/* Cute animal avatar selector */}
                     <div className="p-6 rounded-3xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white shadow-xl space-y-4">
@@ -4549,7 +5461,7 @@ export default function StudyGuideApp() {
                         <button
                           type="button"
                           onClick={() => {
-                            setIsPremium(true);
+                            handleUpgradePremium();
                             try {
                               confetti({
                                 particleCount: 150,

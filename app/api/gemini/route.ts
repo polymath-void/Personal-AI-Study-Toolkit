@@ -15,7 +15,7 @@ const SYSTEM_PROMPT_STUDY_GUIDE = `You are a super friendly, magical, and suppor
 Your goal is to take complex topics and turn them into super fun, exciting, and easily understandable adventure guides!
 
 Guidelines for your outputs:
-1. Dynamic Language Matching: If the user requests Bengali ("bn"), you MUST generate ALL fields in the output JSON in beautiful, warm, grammatically correct Bengali (বাংলা). Otherwise, write in English.
+1. Dynamic Language Matching: If the user requests Bengali ("bn"), you MUST generate ALL string values inside the output JSON (including title, description, analogies, flashcard text, and mindmap nodes) in beautiful, warm, grammatically correct Bengali (বাংলা). Otherwise, write in English.
 2. Kid-Friendly Tone: Speak to a 6-10 year old child with enthusiasm! Use happy emojis (🐻, ✨, 🚀, 🧪, 🎨), exclamation marks, and encouraging words. Keep sentences short and words easy to read.
 3. Magical Metaphors & Everyday Analogies: Abstract ideas should be explained with things kids love, like LEGO blocks, playgrounds, cookies, cute animals, secret agents, or magic spells. For example, explain photosynthesis as "leaves cooking sun-pancakes using chef chlorophyll!"
 4. Visual Breakdown: Organize the mind map hierarchy up to 2 levels deep (Root -> Fun Categories -> Playful Facts) so kids can click and learn easily.
@@ -30,19 +30,13 @@ Guidelines for your outputs:
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, topic, context, history, question, studyGuideContext, language, apiConfig } = body;
+    const { action, topic, context, history, question, studyGuideContext, language, apiConfig, socraticPersona } = body;
 
     const isBengali = language === "bn";
 
-    // Extract dynamic API routing values
-    const operator = apiConfig?.operator || "gemini";
-    const modelToUse = apiConfig?.model || "gemini-3.5-flash";
-    const customUrl = apiConfig?.customUrl || "";
-    const userApiKey = apiConfig?.apiKey || "";
-
-    if (operator === "gemini" && !userApiKey && !process.env.GEMINI_API_KEY) {
+    if (!process.env.GEMINI_API_KEY) {
       return NextResponse.json(
-        { error: "GEMINI_API_KEY environment variable is not configured. Please set it in Settings > Secrets, or enter a custom Gemini API Key in the routing settings." },
+        { error: "GEMINI_API_KEY environment variable is not configured. Please set it in Settings > Secrets." },
         { status: 500 }
       );
     }
@@ -58,86 +52,10 @@ export async function POST(req: NextRequest) {
     }) => {
       const { contents, systemInstruction, responseSchema, responseMimeType, temperature = 0.4, useSearch = true } = options;
 
-      // Custom / OpenAI / Groq / DeepSeek / OpenRouter Operators (OpenAI-compatible)
-      if (operator !== "gemini") {
-        let endpoint = "";
-        let authHeader = "";
-
-        if (operator === "openai") {
-          endpoint = "https://api.openai.com/v1/chat/completions";
-          authHeader = `Bearer ${userApiKey || process.env.OPENAI_API_KEY || ""}`;
-        } else if (operator === "groq") {
-          endpoint = "https://api.groq.com/openai/v1/chat/completions";
-          authHeader = `Bearer ${userApiKey || process.env.GROQ_API_KEY || ""}`;
-        } else if (operator === "deepseek") {
-          endpoint = "https://api.deepseek.com/chat/completions";
-          authHeader = `Bearer ${userApiKey || process.env.DEEPSEEK_API_KEY || ""}`;
-        } else if (operator === "openrouter") {
-          endpoint = "https://openrouter.ai/api/v1/chat/completions";
-          authHeader = `Bearer ${userApiKey || process.env.OPENROUTER_API_KEY || ""}`;
-        } else if (operator === "custom") {
-          endpoint = customUrl || "http://localhost:11434/v1/chat/completions";
-          authHeader = userApiKey ? `Bearer ${userApiKey}` : "";
-        }
-
-        const messages = [];
-        if (systemInstruction) {
-          messages.push({ role: "system", content: systemInstruction });
-        }
-        messages.push({ role: "user", content: contents });
-
-        const bodyPayload: any = {
-          model: modelToUse,
-          messages: messages,
-          temperature: temperature,
-        };
-
-        if (responseMimeType === "application/json") {
-          bodyPayload.response_format = { type: "json_object" };
-        }
-
-        const headers: any = {
-          "Content-Type": "application/json",
-        };
-        if (authHeader) {
-          headers["Authorization"] = authHeader;
-        }
-        if (operator === "openrouter") {
-          headers["HTTP-Referer"] = "https://ai.studio/build";
-          headers["X-Title"] = "Study Guide Toolkit";
-        }
-
-        const res = await fetch(endpoint, {
-          method: "POST",
-          headers: headers,
-          body: JSON.stringify(bodyPayload),
-        });
-
-        if (!res.ok) {
-          const errText = await res.text();
-          throw new Error(`AI Endpoint Error (${operator}) - Status ${res.status}: ${errText}`);
-        }
-
-        const resJson = await res.json();
-        const resultText = resJson.choices?.[0]?.message?.content;
-        return { text: resultText || "" };
-      }
-
-      // Default: Google Gemini SDK using the configurable modelToUse
-      let geminiClient = ai;
-      if (userApiKey) {
-        geminiClient = new GoogleGenAI({
-          apiKey: userApiKey,
-          httpOptions: {
-            headers: {
-              "User-Agent": "aistudio-build",
-            },
-          },
-        });
-      }
-
-      const response = await geminiClient.models.generateContent({
-        model: modelToUse,
+      const GoogleGenAIClient = require("@google/genai").GoogleGenAI;
+      const customAi = apiConfig?.apiKey?.trim() ? new GoogleGenAIClient({ apiKey: apiConfig.apiKey.trim() }) : ai;
+      const response = await customAi.models.generateContent({
+        model: apiConfig?.model?.trim() || "gemini-3.5-flash",
         contents: contents,
         config: {
           systemInstruction: systemInstruction,
@@ -150,6 +68,92 @@ export async function POST(req: NextRequest) {
 
       return { text: response.text };
     };
+
+    if (action === "insights") {
+      const { role, data } = body;
+      const promptParts = [
+        `You are an expert Educational Consultant and AI Manager for the Kids Study Kit.`,
+        `Role: ${role}`,
+        `Current Data to Analyze: ${JSON.stringify(data)}`,
+        `Based on the student progress and current resources, provide 3 short, actionable "Smart Insights" or "Recommendations" for the ${role}.`,
+        `Keep them encouraging, data-driven, and brief. Return the response in a structured bullet-point format.`,
+      ];
+
+      const response = await generateAIResponse({
+        contents: promptParts.join("\n\n"),
+        temperature: 0.7,
+        useSearch: false
+      });
+      return NextResponse.json({ text: response.text });
+    }
+
+    if (action === "suggestReplies") {
+      const { history, userRole, contactRole } = body;
+      const promptParts = [
+        `You are an expert educational and helpful AI assistant for a Kids Study Kit learning platform named StudyBuddy.`,
+        `We need to suggest exactly 3 quick, short, context-aware reply options for a user who has the role "${userRole}" talking to a user who has the role "${contactRole}".`,
+        `Conversation history (from oldest to newest):`,
+        history ? JSON.stringify(history) : "No history yet. Start of the conversation.",
+        `Return exactly 3 helpful, positive, and relevant response options suitable for the role of ${userRole}. Keep each response short (less than 15 words) and highly natural. Use emojis where appropriate.`,
+        isBengali ? `STRICT RULE: Generate the suggestions in beautiful, natural Bengali (বাংলা).` : `STRICT RULE: Generate the suggestions in clear, friendly English.`
+      ];
+
+      const response = await generateAIResponse({
+        contents: promptParts.join("\n\n"),
+        temperature: 0.7,
+        useSearch: false,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            suggestions: {
+              type: Type.ARRAY,
+              description: "Three short, natural, context-aware suggested reply options.",
+              items: { type: Type.STRING }
+            }
+          },
+          required: ["suggestions"]
+        }
+      });
+
+      try {
+        const cleaned = response.text.trim();
+        let cleanJson = cleaned;
+        if (cleanJson.startsWith("```")) {
+          const firstLineBreak = cleanJson.indexOf("\n");
+          if (firstLineBreak !== -1) {
+            cleanJson = cleanJson.substring(firstLineBreak).trim();
+          }
+          if (cleanJson.endsWith("```")) {
+            cleanJson = cleanJson.substring(0, cleanJson.length - 3).trim();
+          }
+        }
+        const parsed = JSON.parse(cleanJson);
+        return NextResponse.json(parsed);
+      } catch (e) {
+        return NextResponse.json({ 
+          suggestions: isBengali 
+            ? ["হ্যাঁ, আমি তৈরি!", "ধন্যবাদ, আমি চেষ্টা করছি!", "দারুণ হয়েছে!"] 
+            : ["Yes, I am ready!", "Thank you, I'm working on it!", "That's awesome!"] 
+        });
+      }
+    }
+
+    if (action === "testConnection") {
+      try {
+        const response = await generateAIResponse({
+          contents: "Hello! Respond with the word 'OK' only to confirm you can hear me. Keep it to one word.",
+          temperature: 0.1,
+          useSearch: false
+        });
+        return NextResponse.json({ success: true, text: response.text || "OK" });
+      } catch (err: any) {
+        return NextResponse.json(
+          { success: false, error: err.message || "Endpoint connection failed." },
+          { status: 500 }
+        );
+      }
+    }
 
     if (action === "voiceChat") {
       if (!question) {
@@ -200,12 +204,34 @@ STRICT POEM/TEXT RULE: If the student asks for a specific poem, story, song, or 
         return NextResponse.json({ error: "Missing follow-up question." }, { status: 400 });
       }
 
+      let personaInstruction = "";
+      if (socraticPersona === "Alien") {
+        personaInstruction = isBengali
+          ? `চরিত্র: আপনি একটি অদ্ভুত ও কৌতূহলী মহাকাশচারী এলিয়েন (👽 Zorg)। আপনি বাচ্চাদের সাথে বাংলায় কথা বলছেন। প্রতিটি উত্তরের শুরুতে বলুন "মহাকাশ থেকে শুভেচ্ছা, মানুষ বন্ধু!" এবং টপিকটি বুঝিয়ে বলুন যেন আপনার গ্রহে এটি সম্পূর্ণ নতুন। উত্তরের শেষে একটি কৌতূহলী সক্রেটিক প্রশ্ন করুন যা গভীর চিন্তাভাবনা উস্কে দেয় (যেমন, "আমাদের গ্রহে তো মাটি নেই, তোমরা কীভাবে গাছপালা বড় করো? গাছ কি আকাশে ভাসতে পারে না?")।`
+          : `Persona: You are a curious and friendly alien from outer space (👽 Zorg). Start your response with "Greetings, earthling friend!" and explain the concept as if it's completely new on your planet. At the end, ask a Socratic follow-up question to encourage deeper thinking (e.g., "On our planet we have no soil, how do you keep your plants standing? What if soil was made of floating clouds?").`;
+      } else if (socraticPersona === "Dino") {
+        personaInstruction = isBengali
+          ? `চরিত্র: আপনি একটি দয়ালু ও মজার ডাইনোসর (🦖 Barnaby)। প্রতিটি উত্তরের শুরুতে বলুন "ররর! আমি বার্নাবি ডাইনো!" এবং টপিকটি সহজে বোঝান। উত্তরের শেষে একটি খেলার ছলে সক্রেটিক প্রশ্ন করুন (যেমন, "গাছপালার সালোকসংশ্লেষণ তো বুঝলাম, কিন্তু গাছ যদি ডাইনোসর-বার্গার রান্না করতে পারত তবে কেমন হতো? রান্নাঘরে কি প্রচুর রোদ লাগবে?")।`
+          : `Persona: You are a warm, playful dinosaur (🦖 Barnaby). Start your response with "Rawr! I am Barnaby the Dino!" and simplify the topic. At the end, ask an imaginative Socratic follow-up question (e.g., "Photosynthesis is cool, but what if trees could cook giant leaf-pizzas for dinosaurs? What would your perfect pizza topping be? How would the sun bake it?").`;
+      } else if (socraticPersona === "Unicorn") {
+        personaInstruction = isBengali
+          ? `চরিত্র: আপনি একটি ম্যাজিক্যাল ইউনিকর্ন (🦄 Sparkles)। প্রতিটি উত্তরের শুরুতে বলুন "স্পার্কলস! চলো এক চিমটি রামধনু ম্যাজিক ছড়িয়ে দিই!" এবং সুন্দর ও উৎসাহিত করার মতো শব্দ ব্যবহার করুন। শেষে একটি সক্রেটিক প্রশ্ন করুন (যেমন, "তুমি কি মনে করো সালোকসংশ্লেষণের আলোর রঙ যদি বেগুনী হতো তবে আমাদের পৃথিবী আরো সুন্দর হতো? গাছ কি তখন বেশি চিনি রান্না করতে পারত?")।`
+          : `Persona: You are a magical, sparkling unicorn (🦄 Sparkles). Start your response with "Sparkles! Let's sprinkle some rainbow magic!" and use exciting, encouraging words. Conclude with an imaginative Socratic question (e.g., "What if the sunlight was purple? Do you think trees would grow magical pink leaves? How would that change their chlorophyll kitchen?").`;
+      } else {
+        // Professor Oak / Default
+        personaInstruction = isBengali
+          ? `চরিত্র: আপনি একজন জ্ঞানী সক্রেটিক প্রফেসর ও শিক্ষক (👨‍🏫 Professor Oak)। আপনি অত্যন্ত স্নেহময় ও বুঝদার ভঙ্গিতে টপিকটি বাচ্চাদের বুঝিয়ে বলেন। উত্তরের শেষে একটি সক্রেটিক প্রশ্ন করুন যা কেবল মুখস্থ না করে বুদ্ধি খাটিয়ে উত্তর দিতে বাধ্য করে (যেমন, "খুব চমৎকার! কিন্তু সূর্য যদি মেঘের আড়ালে ৩ দিন লুকিয়ে থাকে, তবে গাছের রান্নাঘরের কী অবস্থা হবে বলে তোমার মনে হয়?")।`
+          : `Persona: You are a wise and loving Socratic teacher (👨‍🏫 Professor Oak). You explain concepts step-by-step using comforting analogies. Conclude with a thought-provoking Socratic question that prevents rote learning and triggers deep conceptual understanding (e.g., "That's wonderful! But what if the sun hid behind the clouds for three whole days? What would happen to our leafy chef's kitchen then?").`;
+      }
+
       const promptParts = [
         isBengali
           ? `You are a super friendly, magical Study Guide Buddy (স্মার্ট স্টাডি বাডি) for kids aged 6 to 10 years old. Help the student understand topics easily in Bengali (বাংলা). Use fun emojis, short paragraphs, and a warm, encouraging tone. Avoid difficult words. Always reply in Bengali.
 STRICT POEM/TEXT RULE: If the student asks for a specific poem, story, song, or text (e.g., "আমাদের ছোট গ্রাম কবিতা টি পড়তে চাই"), you MUST use Google Search to find the exact complete Bengali text of the poem, and then output the full poem text verbatim. Do not just summarize or give details; the child wants to read and hear the actual poem word-for-word. Format the poem beautifully with line breaks.`
           : `You are a super friendly, magical Study Guide Buddy for kids aged 6 to 10 years old. Help the student understand topics easily in simple English. Use fun emojis, short paragraphs, and a warm, encouraging tone. Avoid difficult words. Always reply in English.
 STRICT POEM/TEXT RULE: If the student asks for a specific poem, story, song, or text, you MUST use Google Search to find the exact complete text of the poem, and then output the full poem text verbatim. Do not just summarize or give details; the child wants to read and hear the actual poem word-for-word. Format the poem beautifully with line breaks.`,
+        `ADDITIONAL PERSONALITY ASSIGNMENT:`,
+        personaInstruction,
         studyGuideContext ? `Ground your explanations in the following context study guide:\n${JSON.stringify(studyGuideContext)}` : "",
         `Student's conversation history:`,
         history ? JSON.stringify(history) : "No prior history.",
@@ -347,7 +373,7 @@ STRICT POEM/STORY SEARCH RULE: If the topic "${topic}" is a poem, story, song, o
 
     const text = response.text;
     if (!text) {
-      throw new Error(`Empty response received from AI model (${operator}).`);
+      throw new Error(`Empty response received from AI model.`);
     }
 
     let cleanedText = text.trim();

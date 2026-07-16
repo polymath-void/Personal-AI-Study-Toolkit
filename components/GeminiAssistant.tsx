@@ -105,18 +105,6 @@ export default function GeminiAssistant({ activeGuide, appLanguage }: GeminiAssi
     setIsGenerating(true);
 
     try {
-      const getApiConfig = () => {
-        try {
-          return {
-            operator: localStorage.getItem("feynman_api_operator") || "gemini",
-            model: localStorage.getItem("feynman_api_model") || "gemini-3.5-flash",
-            customUrl: localStorage.getItem("feynman_api_custom_url") || ""
-          };
-        } catch (e) {
-          return { operator: "gemini", model: "gemini-3.5-flash", customUrl: "" };
-        }
-      };
-
       // Direct call to our robust server-side gemini route
       const response = await fetch('/api/gemini', {
         method: 'POST',
@@ -129,8 +117,7 @@ export default function GeminiAssistant({ activeGuide, appLanguage }: GeminiAssi
           history: chatHistory.map((msg) => ({
             role: msg.sender === 'user' ? 'user' : 'model',
             parts: [{ text: msg.text }],
-          })),
-          apiConfig: getApiConfig()
+          }))
         }),
       });
 

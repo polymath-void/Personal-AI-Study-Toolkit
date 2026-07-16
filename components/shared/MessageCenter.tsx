@@ -141,6 +141,7 @@ export const MessageCenter = ({ role, userId }: { role: 'teacher' | 'parent' | '
         }
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, selectedContact, contacts, userId, audioEnabled]);
 
   // Fetch AI suggested responses for direct conversation
@@ -155,6 +156,7 @@ export const MessageCenter = ({ role, userId }: { role: 'teacher' | 'parent' | '
     }
     // Auto scroll to bottom
     scrollToBottom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedContact, messages]);
 
   const scrollToBottom = () => {

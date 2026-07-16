@@ -643,6 +643,11 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
   const [isListening, setIsListening] = useState(false);
   const recognitionRef = useRef<any>(null);
   
+  // Custom TTS Player Refs for robust cross-origin iframe audio support
+  const ttsAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ttsQueueRef = useRef<string[]>([]);
+  const ttsQueueIndexRef = useRef<number>(0);
+  
   // Did You Know Modal States
   const [showDidYouKnow, setShowDidYouKnow] = useState(false);
   const [didYouKnowFact, setDidYouKnowFact] = useState("");
@@ -1343,81 +1348,134 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
     }
   };
 
-  // Text to speech with Bengali support
+  // Text to speech helper: split text into chunks of <= 150 characters to satisfy Google Translate TTS API limits
+  function splitTextIntoChunks(text: string, maxLen: number = 150): string[] {
+    const cleanText = text
+      .replace(/।/g, "।|")
+      .replace(/\./g, ".|")
+      .replace(/\?/g, "?|")
+      .replace(/\!/g, "!|")
+      .replace(/\n/g, " |");
+    const rawChunks = cleanText.split("|");
+    const chunks: string[] = [];
+    
+    for (let rawChunk of rawChunks) {
+      rawChunk = rawChunk.trim();
+      if (!rawChunk) continue;
+      
+      if (rawChunk.length <= maxLen) {
+        chunks.push(rawChunk);
+      } else {
+        const words = rawChunk.split(/\s+/);
+        let currentChunk = "";
+        for (const word of words) {
+          if ((currentChunk + " " + word).length <= maxLen) {
+            currentChunk = currentChunk ? currentChunk + " " + word : word;
+          } else {
+            if (currentChunk) {
+              chunks.push(currentChunk);
+            }
+            currentChunk = word;
+          }
+        }
+        if (currentChunk) {
+          chunks.push(currentChunk);
+        }
+      }
+    }
+    return chunks;
+  }
+
+  // Play next chunk sequentially from the queue
+  const playNextChunk = () => {
+    if (typeof window === "undefined") return;
+    
+    // Check if we finished the queue
+    if (ttsQueueIndexRef.current >= ttsQueueRef.current.length) {
+      setIsSpeaking(false);
+      setSpokenText(null);
+      return;
+    }
+    
+    const chunk = ttsQueueRef.current[ttsQueueIndexRef.current];
+    const isBengali = /[ঀ-৿]/.test(chunk) || bengaliVoiceEnabled;
+    const lang = isBengali ? "bn" : "en";
+    const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&tl=${lang}&client=tw-ob&q=${encodeURIComponent(chunk)}`;
+    
+    if (ttsAudioRef.current) {
+      ttsAudioRef.current.pause();
+    }
+    
+    const audio = new Audio(ttsUrl);
+    ttsAudioRef.current = audio;
+    
+    // Apply voice rate/speed configuration
+    audio.playbackRate = ttsRate;
+    
+    audio.onended = () => {
+      ttsQueueIndexRef.current += 1;
+      playNextChunk();
+    };
+    
+    audio.onerror = (e) => {
+      console.error("Audio TTS chunk play error, attempting next...", e);
+      ttsQueueIndexRef.current += 1;
+      playNextChunk();
+    };
+    
+    audio.play().catch(err => {
+      console.warn("Iframe audio playback was delayed or blocked, moving forward.", err);
+      // Fail gracefully
+      setIsSpeaking(false);
+      setSpokenText(null);
+    });
+  };
+
+  // Main SpeakText function utilizing standard HTML5 Audio fallback for iframe environments
   function speakText(text: string) {
-    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    if (typeof window === "undefined") return;
 
     try {
-      // Resume and cancel any pending speech to clean up stuck states
-      window.speechSynthesis.resume();
-      window.speechSynthesis.cancel();
-
+      // Toggle stop if speaking the exact same text
       if (isSpeaking && spokenText === text) {
+        if (ttsAudioRef.current) {
+          ttsAudioRef.current.pause();
+          ttsAudioRef.current = null;
+        }
+        if (window.speechSynthesis) {
+          window.speechSynthesis.cancel();
+        }
         setIsSpeaking(false);
         setSpokenText(null);
         return;
       }
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      
-      // Apply chosen voice persona attributes
-      if (voicePersona === "robot") {
-        utterance.pitch = 0.5; // Deep voice
-        utterance.rate = ttsRate * 0.85; // Slightly slower
-      } else if (voicePersona === "kid") {
-        utterance.pitch = 1.5; // High squeaky kid pitch
-        utterance.rate = ttsRate * 1.2; // Faster, higher energy
+      // Stop any current audio
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.pause();
+        ttsAudioRef.current = null;
+      }
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+
+      setIsSpeaking(true);
+      setSpokenText(text);
+
+      const chunks = splitTextIntoChunks(text);
+      ttsQueueRef.current = chunks;
+      ttsQueueIndexRef.current = 0;
+
+      if (chunks.length > 0) {
+        playNextChunk();
       } else {
-        // "teacher" - Warm friendly educator voice
-        utterance.pitch = 1.05; // Slightly warmer/higher pitch
-        utterance.rate = ttsRate * 0.95; // Steady, cozy speed
-      }
-      
-      const voices = window.speechSynthesis.getVoices();
-      let selectedVoice = null;
-
-      if (bengaliVoiceEnabled) {
-        selectedVoice = voices.find(v => v.lang.toLowerCase().includes("bn")) || null;
-        utterance.lang = "bn-BD";
-      } else {
-        selectedVoice = voices.find(v => v.lang.toLowerCase().startsWith("en") && v.name.toLowerCase().includes("google")) ||
-                        voices.find(v => v.lang.toLowerCase().startsWith("en")) ||
-                        null;
-        utterance.lang = "en-US";
-      }
-
-      if (selectedVoice) {
-        utterance.voice = selectedVoice;
-      }
-
-      utterance.onstart = () => {
-        setIsSpeaking(true);
-        setSpokenText(text);
-      };
-
-      utterance.onend = () => {
         setIsSpeaking(false);
         setSpokenText(null);
-        if ((window as any)._activeUtterance === utterance) {
-          (window as any)._activeUtterance = null;
-        }
-      };
-
-      utterance.onerror = (event) => {
-        console.error("SpeechSynthesis error:", event);
-        setIsSpeaking(false);
-        setSpokenText(null);
-        if ((window as any)._activeUtterance === utterance) {
-          (window as any)._activeUtterance = null;
-        }
-      };
-
-      // Critical chromium workaround: prevent garbage collection of the utterance object
-      (window as any)._activeUtterance = utterance;
-
-      window.speechSynthesis.speak(utterance);
+      }
     } catch (e) {
-      console.error("Error during speech synthesis:", e);
+      console.error("Error starting speech synthesis:", e);
+      setIsSpeaking(false);
+      setSpokenText(null);
     }
   };
 
@@ -1488,11 +1546,15 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
       setIsCardFlipped(false);
       
       // Stop speaking when switching guides
+      if (ttsAudioRef.current) {
+        ttsAudioRef.current.pause();
+        ttsAudioRef.current = null;
+      }
       if (typeof window !== "undefined" && window.speechSynthesis) {
         window.speechSynthesis.cancel();
-        setIsSpeaking(false);
-        setSpokenText(null);
       }
+      setIsSpeaking(false);
+      setSpokenText(null);
 
       // Restore card status for this guide from global memory
       const activeGuideCardStatus = guidesCardStatus[activeGuide.id] || {};
@@ -2466,11 +2528,11 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
                   <div className="flex gap-1 sm:gap-2 overflow-x-auto pb-1 max-w-full w-full justify-start md:justify-center no-scrollbar px-2">
                       {([
                         { id: "feynman", label: t.feynmanDeconstruction, icon: Lightbulb, color: "text-amber-500", bg: "bg-amber-500/10" },
+                        { id: "dashboard", label: t.dashboard, icon: BarChart2, color: "text-indigo-500", bg: "bg-indigo-500/10" },
                         { id: "mindmap", label: t.mindmap, icon: Compass, color: "text-blue-500", bg: "bg-blue-500/10" },
                         { id: "flashcards", label: t.flashcards, icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
                         { id: "clarifier", label: t.clarifier, icon: HelpCircle, color: "text-purple-500", bg: "bg-purple-500/10" },
                         { id: "voiceChat", label: t.voiceChat, icon: Mic, color: "text-rose-500", bg: "bg-rose-500/10" },
-                        { id: "dashboard", label: t.dashboard, icon: BarChart2, color: "text-indigo-500", bg: "bg-indigo-500/10" },
                         { id: "messages", label: t.messages, icon: MessageSquare, color: "text-emerald-500", bg: "bg-emerald-500/10" },
                         { id: "parents", label: t.parentsCorner, icon: Sliders, color: "text-pink-500", bg: "bg-pink-500/10" }
                       ] as const).map((tab) => {
@@ -2514,247 +2576,6 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
 
             {/* TAB CONTAINER CONTENT */}
             <div className="flex-1 overflow-y-auto p-6 md:p-8">
-              {!isFocusMode && (
-                <div className="mb-8 max-w-4xl mx-auto p-6 rounded-3xl bg-gradient-to-br from-[#0c1221] to-[#070b14] border border-white/5 shadow-2xl relative overflow-hidden text-left">
-                  {/* Glowing background highlights */}
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
-                  <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
-                  
-                  {/* Top Header: Title and Preferences Sync */}
-                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-white/5">
-                    <div>
-                      <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-yellow-400 animate-pulse" />
-                        <span>Socratic Learning & Skill Academy</span>
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-0.5">Progress through levels of active recall by teaching, creating, and remembering.</p>
-                    </div>
-                    
-                    {/* Sync button & Focus Mode Launcher */}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        onClick={() => {
-                          if (typeof window !== "undefined") {
-                            localStorage.setItem("skill_focus_points", focusPoints.toString());
-                            localStorage.setItem("skill_memory_mastery", memoryMastery.toString());
-                            localStorage.setItem("skill_grit_gems", gritGems.toString());
-                            localStorage.setItem("feynman_voice_persona", socraticPersona);
-                            alert("☁️ Study Preferences & Skill Tree Synced successfully with Cloud Backup!");
-                          }
-                        }}
-                        className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/5 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-sm"
-                        title="Sync learning settings to cloud database"
-                      >
-                        <span>☁️ Sync Preferences</span>
-                      </button>
-
-                      <button
-                        onClick={() => setIsFocusMode(true)}
-                        className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md hover:scale-105"
-                        title="Start a noise-free, high-inhibitory focus session"
-                      >
-                        <span>🎯 Start Focus Mode</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Grid of Metrics, Socratic Levels, and Character */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-                    
-                    {/* 1. Skill Tree (4 columns) */}
-                    <div className="lg:col-span-4 space-y-4">
-                      <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-2">My Skill Tree Achievements</p>
-                      
-                      {/* Focus Points */}
-                      <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between group hover:bg-indigo-500/5 hover:border-indigo-500/20 transition-all">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform">
-                            🎯
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-slate-200">Focus Points</p>
-                            <p className="text-[9px] text-slate-500">Earned via distraction-free study</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-sm font-extrabold font-mono text-indigo-400">{focusPoints} XP</span>
-                        </div>
-                      </div>
-
-                      {/* Memory Mastery */}
-                      <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between group hover:bg-emerald-500/5 hover:border-emerald-500/20 transition-all">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform">
-                            🧠
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-slate-200">Memory Mastery</p>
-                            <p className="text-[9px] text-slate-500">Earned from perfect flashcards</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-sm font-extrabold font-mono text-emerald-400">{memoryMastery} MP</span>
-                        </div>
-                      </div>
-
-                      {/* Grit Gems */}
-                      <div className="p-3 rounded-2xl bg-white/5 border border-white/5 flex items-center justify-between group hover:bg-amber-500/5 hover:border-amber-500/20 transition-all">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform">
-                            💎
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-slate-200">Grit Gems</p>
-                            <p className="text-[9px] text-slate-500">Earned via Feynman answers</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-sm font-extrabold font-mono text-amber-400">{gritGems} GG</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* 2. Level Progression Nodes (5 columns) */}
-                    <div className="lg:col-span-5 flex flex-col justify-between">
-                      <div>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-2">Cognitive Mastery Path</p>
-                        
-                        {/* Interactive Level Path */}
-                        <div className="flex items-center justify-between mt-4 px-2 relative">
-                          {/* Linking track lines */}
-                          <div className="absolute top-4 left-6 right-6 h-1 bg-slate-800 z-0" />
-                          <div className={`absolute top-4 left-6 h-1 bg-gradient-to-r from-indigo-500 to-emerald-500 z-0 transition-all duration-500`} 
-                               style={{ width: selectedStudyLevel === 1 ? '0%' : selectedStudyLevel === 2 ? '50%' : '100%' }} />
-
-                          {/* Node 1: Explorer */}
-                          <button
-                            onClick={() => {
-                              setSelectedStudyLevel(1);
-                              setActiveTab("flashcards");
-                            }}
-                            className="relative z-10 flex flex-col items-center group focus:outline-none"
-                          >
-                            <div className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-xs transition-all ${
-                              selectedStudyLevel === 1 
-                                ? 'bg-indigo-600 text-white shadow-lg ring-4 ring-indigo-500/30 scale-110' 
-                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                            }`}>
-                              1
-                            </div>
-                            <span className="text-[10px] font-bold text-slate-300 mt-2">Explorer</span>
-                            <span className="text-[8px] text-slate-500">Flashcard Quiz</span>
-                          </button>
-
-                          {/* Node 2: Explainer */}
-                          <button
-                            onClick={() => {
-                              setSelectedStudyLevel(2);
-                              setActiveTab("feynman");
-                            }}
-                            className="relative z-10 flex flex-col items-center group focus:outline-none"
-                          >
-                            <div className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-xs transition-all ${
-                              selectedStudyLevel === 2 
-                                ? 'bg-emerald-600 text-white shadow-lg ring-4 ring-emerald-500/30 scale-110' 
-                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                            }`}>
-                              2
-                            </div>
-                            <span className="text-[10px] font-bold text-slate-300 mt-2">Explainer</span>
-                            <span className="text-[8px] text-slate-500">Feynman Socratic</span>
-                          </button>
-
-                          {/* Node 3: Creator */}
-                          <button
-                            onClick={() => {
-                              setSelectedStudyLevel(3);
-                              setActiveTab("mindmap");
-                            }}
-                            className="relative z-10 flex flex-col items-center group focus:outline-none"
-                          >
-                            <div className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-xs transition-all ${
-                              selectedStudyLevel === 3 
-                                ? 'bg-amber-600 text-white shadow-lg ring-4 ring-amber-500/30 scale-110' 
-                                : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
-                            }`}>
-                              3
-                            </div>
-                            <span className="text-[10px] font-bold text-slate-300 mt-2">Creator</span>
-                            <span className="text-[8px] text-slate-500">Mind Map Builder</span>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Quick tip on selected level */}
-                      <div className="mt-4 p-3.5 rounded-2xl bg-white/[0.02] border border-white/5 text-xs text-slate-400 text-left">
-                        {selectedStudyLevel === 1 && (
-                          <p>⭐ **Level 1 (Explorer)**: Solidify core terms by tackling generative recall riddles. Get 5 correct in a row to boost **Memory Mastery**!</p>
-                        )}
-                        {selectedStudyLevel === 2 && (
-                          <p>🔥 **Level 2 (Explainer)**: Explain the concept in simple words to your chosen Socratic character. Earn **Grit Gems** for deeper responses!</p>
-                        )}
-                        {selectedStudyLevel === 3 && (
-                          <p>🌳 **Level 3 (Creator)**: Complete nodes of the interactive knowledge tree. Practicing layout design strengthens visual working memory!</p>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 3. Socratic Companion (3 columns) */}
-                    <div className="lg:col-span-3 flex flex-col justify-between p-4 rounded-2xl bg-white/[0.02] border border-white/5">
-                      <div className="text-center flex-1 flex flex-col justify-center">
-                        <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2">My Socratic Bot</p>
-                        
-                        {/* Dynamic Avatar display */}
-                        <div className="w-12 h-12 rounded-full bg-slate-800 mx-auto flex items-center justify-center text-2xl shadow-md border border-emerald-500/20">
-                          {socraticPersona === "Oak" && "👨‍🏫"}
-                          {socraticPersona === "Alien" && "👽"}
-                          {socraticPersona === "Dino" && "🦖"}
-                          {socraticPersona === "Unicorn" && "🦄"}
-                        </div>
-                        
-                        <p className="text-xs font-bold text-slate-200 mt-2">
-                          {socraticPersona === "Oak" && "Prof. Oak"}
-                          {socraticPersona === "Alien" && "Zorg the Alien"}
-                          {socraticPersona === "Dino" && "Barnaby the Dino"}
-                          {socraticPersona === "Unicorn" && "Sparkles Unicorn"}
-                        </p>
-                        
-                        <p className="text-[10px] text-slate-500 mt-1 italic leading-tight">
-                          {socraticPersona === "Oak" && "Wise, comforting teacher."}
-                          {socraticPersona === "Alien" && "Curious explorer of Earth!"}
-                          {socraticPersona === "Dino" && "Playful dino burger chef."}
-                          {socraticPersona === "Unicorn" && "Joyful, sparkles rainbows."}
-                        </p>
-                      </div>
-
-                      {/* Mini Persona Selector Buttons */}
-                      <div className="grid grid-cols-4 gap-1 mt-3">
-                        {(["Oak", "Alien", "Dino", "Unicorn"] as const).map((pers) => (
-                          <button
-                            key={pers}
-                            onClick={() => {
-                              setSocraticPersona(pers);
-                              localStorage.setItem("feynman_voice_persona", pers);
-                            }}
-                            className={`p-1 rounded-lg text-xs hover:scale-105 transition-all flex items-center justify-center border cursor-pointer ${
-                              socraticPersona === pers 
-                                ? "bg-emerald-500/15 border-emerald-500 text-white" 
-                                : "bg-slate-900 border-transparent text-slate-500 hover:text-slate-300"
-                            }`}
-                            title={`Study with ${pers}`}
-                          >
-                            {pers === "Oak" && "👨‍🏫"}
-                            {pers === "Alien" && "👽"}
-                            {pers === "Dino" && "🦖"}
-                            {pers === "Unicorn" && "🦄"}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                  </div>
-                </div>
-              )}
               {pushedAssignment && (
                 <div className="mb-6 max-w-4xl mx-auto p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-indigo-500/10 to-[#0a0f1d] border border-emerald-500/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-bounce-subtle">
                   <div className="flex items-center gap-3">
@@ -4617,6 +4438,246 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
                     transition={{ duration: 0.25, ease: "easeInOut" }}
                     className="max-w-5xl mx-auto space-y-6 text-left animate-fade-in"
                   >
+                    {/* Socratic Learning & Skill Academy */}
+                    <div className="mb-8 p-6 rounded-3xl bg-gradient-to-br from-indigo-50/50 to-slate-50 dark:from-[#0c1221] dark:to-[#070b14] border border-slate-200 dark:border-white/5 shadow-xl relative overflow-hidden text-left">
+                      {/* Glowing background highlights */}
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+                      <div className="absolute -bottom-8 -left-8 w-32 h-32 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+                      
+                      {/* Top Header: Title and Preferences Sync */}
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-slate-200 dark:border-white/5">
+                        <div>
+                          <h3 className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            <Sparkles className="w-5 h-5 text-yellow-500 dark:text-yellow-400 animate-pulse" />
+                            <span>Socratic Learning & Skill Academy</span>
+                          </h3>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Progress through levels of active recall by teaching, creating, and remembering.</p>
+                        </div>
+                        
+                        {/* Sync button & Focus Mode Launcher */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            onClick={() => {
+                              if (typeof window !== "undefined") {
+                                localStorage.setItem("skill_focus_points", focusPoints.toString());
+                                localStorage.setItem("skill_memory_mastery", memoryMastery.toString());
+                                localStorage.setItem("skill_grit_gems", gritGems.toString());
+                                localStorage.setItem("feynman_voice_persona", socraticPersona);
+                                alert("☁️ Study Preferences & Skill Tree Synced successfully with Cloud Backup!");
+                              }
+                            }}
+                            className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-white/5 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-sm"
+                            title="Sync learning settings to cloud database"
+                          >
+                            <span>☁️ Sync Preferences</span>
+                          </button>
+
+                          <button
+                            onClick={() => setIsFocusMode(true)}
+                            className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-md hover:scale-105"
+                            title="Start a noise-free, high-inhibitory focus session"
+                          >
+                            <span>🎯 Start Focus Mode</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Grid of Metrics, Socratic Levels, and Character */}
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                        
+                        {/* 1. Skill Tree (4 columns) */}
+                        <div className="lg:col-span-4 space-y-4">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-2">My Skill Tree Achievements</p>
+                          
+                          {/* Focus Points */}
+                          <div className="p-3 rounded-2xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 flex items-center justify-between group hover:bg-indigo-500/5 dark:hover:bg-indigo-500/5 hover:border-indigo-500/20 transition-all">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform">
+                                🎯
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Focus Points</p>
+                                <p className="text-[9px] text-slate-500">Earned via distraction-free study</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-sm font-extrabold font-mono text-indigo-500 dark:text-indigo-400">{focusPoints} XP</span>
+                            </div>
+                          </div>
+
+                          {/* Memory Mastery */}
+                          <div className="p-3 rounded-2xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 flex items-center justify-between group hover:bg-emerald-500/5 dark:hover:bg-emerald-500/5 hover:border-emerald-500/20 transition-all">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform">
+                                🧠
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Memory Mastery</p>
+                                <p className="text-[9px] text-slate-500">Earned from perfect flashcards</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-sm font-extrabold font-mono text-emerald-500 dark:text-emerald-400">{memoryMastery} MP</span>
+                            </div>
+                          </div>
+
+                          {/* Grit Gems */}
+                          <div className="p-3 rounded-2xl bg-white dark:bg-white/5 border border-slate-200 dark:border-white/5 flex items-center justify-between group hover:bg-amber-500/5 dark:hover:bg-amber-500/5 hover:border-amber-500/20 transition-all">
+                            <div className="flex items-center gap-2.5">
+                              <div className="w-9 h-9 rounded-xl bg-amber-500/10 flex items-center justify-center font-bold text-lg group-hover:scale-110 transition-transform">
+                                💎
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Grit Gems</p>
+                                <p className="text-[9px] text-slate-500">Earned via Feynman answers</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-sm font-extrabold font-mono text-amber-500 dark:text-amber-400">{gritGems} GG</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 2. Level Progression Nodes (5 columns) */}
+                        <div className="lg:col-span-5 flex flex-col justify-between">
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-2">Cognitive Mastery Path</p>
+                            
+                            {/* Interactive Level Path */}
+                            <div className="flex items-center justify-between mt-4 px-2 relative">
+                              {/* Linking track lines */}
+                              <div className="absolute top-4 left-6 right-6 h-1 bg-slate-200 dark:bg-slate-800 z-0" />
+                              <div className={`absolute top-4 left-6 h-1 bg-gradient-to-r from-indigo-500 to-emerald-500 z-0 transition-all duration-500`} 
+                                   style={{ width: selectedStudyLevel === 1 ? '0%' : selectedStudyLevel === 2 ? '50%' : '100%' }} />
+
+                              {/* Node 1: Explorer */}
+                              <button
+                                onClick={() => {
+                                  setSelectedStudyLevel(1);
+                                  setActiveTab("flashcards");
+                                }}
+                                className="relative z-10 flex flex-col items-center group focus:outline-none"
+                              >
+                                <div className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-xs transition-all cursor-pointer ${
+                                  selectedStudyLevel === 1 
+                                    ? 'bg-indigo-600 text-white shadow-lg ring-4 ring-indigo-500/30 scale-110' 
+                                    : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
+                                }`}>
+                                  1
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mt-2">Explorer</span>
+                                <span className="text-[8px] text-slate-500">Flashcard Quiz</span>
+                              </button>
+
+                              {/* Node 2: Explainer */}
+                              <button
+                                onClick={() => {
+                                  setSelectedStudyLevel(2);
+                                  setActiveTab("feynman");
+                                }}
+                                className="relative z-10 flex flex-col items-center group focus:outline-none"
+                              >
+                                <div className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-xs transition-all cursor-pointer ${
+                                  selectedStudyLevel === 2 
+                                    ? 'bg-emerald-600 text-white shadow-lg ring-4 ring-emerald-500/30 scale-110' 
+                                    : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
+                                }`}>
+                                  2
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mt-2">Explainer</span>
+                                <span className="text-[8px] text-slate-500">Feynman Socratic</span>
+                              </button>
+
+                              {/* Node 3: Creator */}
+                              <button
+                                onClick={() => {
+                                  setSelectedStudyLevel(3);
+                                  setActiveTab("mindmap");
+                                }}
+                                className="relative z-10 flex flex-col items-center group focus:outline-none"
+                              >
+                                <div className={`w-9 h-9 rounded-full flex items-center justify-center font-extrabold text-xs transition-all cursor-pointer ${
+                                  selectedStudyLevel === 3 
+                                    ? 'bg-amber-600 text-white shadow-lg ring-4 ring-amber-500/30 scale-110' 
+                                    : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-300 dark:hover:bg-slate-700'
+                                }`}>
+                                  3
+                                </div>
+                                <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mt-2">Creator</span>
+                                <span className="text-[8px] text-slate-500">Mind Map Builder</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Quick tip on selected level */}
+                          <div className="mt-4 p-3.5 rounded-2xl bg-slate-100/50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 text-xs text-slate-600 dark:text-slate-400 text-left">
+                            {selectedStudyLevel === 1 && (
+                              <p>⭐ **Level 1 (Explorer)**: Solidify core terms by tackling generative recall riddles. Get 5 correct in a row to boost **Memory Mastery**!</p>
+                            )}
+                            {selectedStudyLevel === 2 && (
+                              <p>🔥 **Level 2 (Explainer)**: Explain the concept in simple words to your chosen Socratic character. Earn **Grit Gems** for deeper responses!</p>
+                            )}
+                            {selectedStudyLevel === 3 && (
+                              <p>🌳 **Level 3 (Creator)**: Complete nodes of the interactive knowledge tree. Practicing layout design strengthens visual working memory!</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 3. Socratic Companion (3 columns) */}
+                        <div className="lg:col-span-3 flex flex-col justify-between p-4 rounded-2xl bg-slate-100/50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5">
+                          <div className="text-center flex-1 flex flex-col justify-center">
+                            <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2">My Socratic Bot</p>
+                            
+                            {/* Dynamic Avatar display */}
+                            <div className="w-12 h-12 rounded-full bg-white dark:bg-slate-800 mx-auto flex items-center justify-center text-2xl shadow-md border border-slate-200 dark:border-emerald-500/20">
+                              {socraticPersona === "Oak" && "👨‍🏫"}
+                              {socraticPersona === "Alien" && "👽"}
+                              {socraticPersona === "Dino" && "🦖"}
+                              {socraticPersona === "Unicorn" && "🦄"}
+                            </div>
+                            
+                            <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-2">
+                              {socraticPersona === "Oak" && "Prof. Oak"}
+                              {socraticPersona === "Alien" && "Zorg the Alien"}
+                              {socraticPersona === "Dino" && "Barnaby the Dino"}
+                              {socraticPersona === "Unicorn" && "Sparkles Unicorn"}
+                            </p>
+                            
+                            <p className="text-[10px] text-slate-500 mt-1 italic leading-tight">
+                              {socraticPersona === "Oak" && "Wise, comforting teacher."}
+                              {socraticPersona === "Alien" && "Curious explorer of Earth!"}
+                              {socraticPersona === "Dino" && "Playful dino burger chef."}
+                              {socraticPersona === "Unicorn" && "Joyful, sparkles rainbows."}
+                            </p>
+                          </div>
+
+                          {/* Mini Persona Selector Buttons */}
+                          <div className="grid grid-cols-4 gap-1 mt-3">
+                            {(["Oak", "Alien", "Dino", "Unicorn"] as const).map((pers) => (
+                              <button
+                                key={pers}
+                                onClick={() => {
+                                  setSocraticPersona(pers);
+                                  localStorage.setItem("feynman_voice_persona", pers);
+                                }}
+                                className={`p-1 rounded-lg text-xs hover:scale-105 transition-all flex items-center justify-center border cursor-pointer ${
+                                  socraticPersona === pers 
+                                    ? "bg-emerald-500/15 border-emerald-500 text-emerald-600 dark:text-white font-bold" 
+                                    : "bg-white dark:bg-slate-900 border-slate-200 dark:border-transparent text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800"
+                                }`}
+                                title={`Study with ${pers}`}
+                              >
+                                {pers === "Oak" && "👨‍🏫"}
+                                {pers === "Alien" && "👽"}
+                                {pers === "Dino" && "🦖"}
+                                {pers === "Unicorn" && "🦄"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
                     <div className="text-left flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
                         <span className="text-[10px] font-mono bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-full border border-emerald-500/10 font-bold uppercase tracking-widest">

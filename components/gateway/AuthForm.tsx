@@ -34,6 +34,9 @@ export const AuthForm = () => {
   const [role, setRole] = useState<UserRole>("student");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loginMode, setLoginMode] = useState<"parent" | "subuser">("parent");
+  const [subUidInput, setSubUidInput] = useState("");
+  const [pinInput, setPinInput] = useState("");
 
   // Sandbox trial states
   const [sandboxTab, setSandboxTab] = useState<"feynman" | "flashcard">("feynman");
@@ -79,6 +82,69 @@ export const AuthForm = () => {
     const supabase = getSupabase();
     
     try {
+      if (loginMode === "subuser") {
+        if (!subUidInput.trim() || !pinInput.trim()) {
+          throw new Error("Please fill in both Sub-User ID and 6-digit PIN.");
+        }
+        
+        // Check for special local offline/demo mappings
+        if (subUidInput.trim() === 'student-demo-id' && pinInput.trim() === '123456') {
+          const demoUser = {
+            id: 'student-demo-id',
+            name: 'Demo Student',
+            role: 'student',
+            parent_global_uid: 'parent-demo-id',
+            email: 'student@demo.com',
+            created_at: new Date().toISOString()
+          };
+          localStorage.setItem('sub_user_session', JSON.stringify(demoUser));
+        } else if (subUidInput.trim() === 'teacher-demo-id' && pinInput.trim() === '123456') {
+          const demoUser = {
+            id: 'teacher-demo-id',
+            name: 'Demo Teacher',
+            role: 'teacher',
+            parent_global_uid: 'parent-demo-id',
+            email: 'teacher@demo.com',
+            created_at: new Date().toISOString()
+          };
+          localStorage.setItem('sub_user_session', JSON.stringify(demoUser));
+        } else {
+          // Custom entity login logic
+          // Verify PIN using verify_sub_user_login RPC
+          const { data: verifyData, error: rpcError } = await supabase
+            .rpc('verify_sub_user_login', {
+              p_sub_uid: subUidInput.trim(),
+              p_pin: pinInput.trim()
+            });
+
+          if (rpcError || !verifyData || verifyData.length === 0) {
+            throw new Error("Invalid Sub-User UID or PIN.");
+          } else {
+            // Login successful, save sub_user_session in localStorage
+            const matched = verifyData[0];
+            const subUserSession = {
+              id: matched.sub_uid,
+              parent_global_uid: matched.parent_global_uid,
+              role: matched.role,
+              name: matched.name,
+              email: `${matched.sub_uid}@subuser.local`
+            };
+            localStorage.setItem('sub_user_session', JSON.stringify(subUserSession));
+          }
+        }
+
+        try {
+          confetti({
+            particleCount: 120,
+            spread: 80,
+            origin: { y: 0.6 }
+          });
+        } catch(e){}
+        window.location.reload();
+        return;
+      }
+
+      // Standard parent email/password login
       if (isSignup) {
         await signUpUser(email, password, name, role);
         try {
@@ -430,11 +496,44 @@ export const AuthForm = () => {
             
             <div className="space-y-1">
               <h3 className="text-xl font-black text-slate-900 tracking-tight">
-                {isSignup ? "Create Free Account" : "Access Your Workspace"}
+                {loginMode === 'subuser' ? "Sub-User Access" : (isSignup ? "Create Free Account" : "Access Your Workspace")}
               </h3>
               <p className="text-xs text-slate-500 font-medium">
-                {isSignup ? "Join families & educators already mastering lessons" : "Enter credentials or click a demo login option below"}
+                {loginMode === 'subuser' ? "Enter your generated Sub-User ID & 6-digit PIN" : (isSignup ? "Join families & educators already mastering lessons" : "Enter credentials or click a demo login option below")}
               </p>
+            </div>
+
+            {/* Tab Selector for Parents vs Sub-Users */}
+            <div className="grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginMode("parent");
+                  setError("");
+                }}
+                className={`py-1.5 text-[10px] font-extrabold uppercase rounded-lg transition-all cursor-pointer ${
+                  loginMode === "parent"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Parents (Standard)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginMode("subuser");
+                  setIsSignup(false);
+                  setError("");
+                }}
+                className={`py-1.5 text-[10px] font-extrabold uppercase rounded-lg transition-all cursor-pointer ${
+                  loginMode === "subuser"
+                    ? "bg-white text-indigo-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                }`}
+              >
+                Teachers & Kids (PIN)
+              </button>
             </div>
 
             {error && (
@@ -445,76 +544,113 @@ export const AuthForm = () => {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               
-              {isSignup && (
-                <div className="space-y-1.5 text-left">
-                  <label className="text-xs font-bold text-slate-500">Full Name</label>
-                  <div className="relative">
-                    <User className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Alex Carter" 
-                      value={name} 
-                      onChange={e => setName(e.target.value)} 
-                      className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500 bg-slate-50/50 text-slate-800 font-semibold"
-                      required 
-                    />
+              {loginMode === "subuser" ? (
+                <>
+                  <div className="space-y-1.5 text-left">
+                    <label className="text-xs font-bold text-slate-500">Sub-User ID (sub_uid)</label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                      <input 
+                        type="text" 
+                        placeholder="e.g. teacher-demo-id or UUID" 
+                        value={subUidInput} 
+                        onChange={e => setSubUidInput(e.target.value)} 
+                        className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500 bg-slate-50/50 text-slate-800 font-semibold"
+                        required={loginMode === "subuser"} 
+                      />
+                    </div>
                   </div>
-                </div>
-              )}
 
-              <div className="space-y-1.5 text-left">
-                <label className="text-xs font-bold text-slate-500">Email Address</label>
-                <div className="relative">
-                  <Mail className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                  <input 
-                    type="email" 
-                    placeholder="you@example.com" 
-                    value={email} 
-                    onChange={e => setEmail(e.target.value)} 
-                    className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500 bg-slate-50/50 text-slate-800 font-semibold"
-                    required 
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1.5 text-left">
-                <label className="text-xs font-bold text-slate-500">Password</label>
-                <div className="relative">
-                  <Lock className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
-                  <input 
-                    type="password" 
-                    placeholder="••••••••" 
-                    value={password} 
-                    onChange={e => setPassword(e.target.value)} 
-                    className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500 bg-slate-50/50 text-slate-800 font-semibold"
-                    required 
-                  />
-                </div>
-              </div>
-
-              {isSignup && (
-                <div className="space-y-1.5 text-left">
-                  <label className="text-xs font-bold text-slate-500">Your Portal Access Role</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(["student", "teacher", "parent"] as const).map((r) => {
-                      const isSelected = role === r;
-                      return (
-                        <button
-                          key={r}
-                          type="button"
-                          onClick={() => setRole(r)}
-                          className={`py-2 text-[10px] font-extrabold uppercase rounded-lg border-2 transition-all cursor-pointer ${
-                            isSelected 
-                              ? "bg-indigo-50 border-indigo-500 text-indigo-600 scale-[1.02]" 
-                              : "bg-slate-50/50 border-slate-100 hover:bg-slate-100 text-slate-500"
-                          }`}
-                        >
-                          {r}
-                        </button>
-                      );
-                    })}
+                  <div className="space-y-1.5 text-left">
+                    <label className="text-xs font-bold text-slate-500">6-Digit PIN</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                      <input 
+                        type="password" 
+                        maxLength={6}
+                        placeholder="e.g. 123456" 
+                        value={pinInput} 
+                        onChange={e => setPinInput(e.target.value)} 
+                        className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500 bg-slate-50/50 text-slate-800 font-semibold"
+                        required={loginMode === "subuser"} 
+                      />
+                    </div>
                   </div>
-                </div>
+                </>
+              ) : (
+                <>
+                  {isSignup && (
+                    <div className="space-y-1.5 text-left">
+                      <label className="text-xs font-bold text-slate-500">Full Name</label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Alex Carter" 
+                          value={name} 
+                          onChange={e => setName(e.target.value)} 
+                          className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500 bg-slate-50/50 text-slate-800 font-semibold"
+                          required={loginMode === "parent" && isSignup} 
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-1.5 text-left">
+                    <label className="text-xs font-bold text-slate-500">Email Address</label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                      <input 
+                        type="email" 
+                        placeholder="you@example.com" 
+                        value={email} 
+                        onChange={e => setEmail(e.target.value)} 
+                        className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500 bg-slate-50/50 text-slate-800 font-semibold"
+                        required={loginMode === "parent"} 
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 text-left">
+                    <label className="text-xs font-bold text-slate-500">Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                      <input 
+                        type="password" 
+                        placeholder="••••••••" 
+                        value={password} 
+                        onChange={e => setPassword(e.target.value)} 
+                        className="w-full text-xs pl-10 pr-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500 bg-slate-50/50 text-slate-800 font-semibold"
+                        required={loginMode === "parent"} 
+                      />
+                    </div>
+                  </div>
+
+                  {isSignup && (
+                    <div className="space-y-1.5 text-left">
+                      <label className="text-xs font-bold text-slate-500">Your Portal Access Role</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(["student", "teacher", "parent"] as const).map((r) => {
+                          const isSelected = role === r;
+                          return (
+                            <button
+                              key={r}
+                              type="button"
+                              onClick={() => setRole(r)}
+                              className={`py-2 text-[10px] font-extrabold uppercase rounded-lg border-2 transition-all cursor-pointer ${
+                                isSelected 
+                                  ? "bg-indigo-50 border-indigo-500 text-indigo-600 scale-[1.02]" 
+                                  : "bg-slate-50/50 border-slate-100 hover:bg-slate-100 text-slate-500"
+                              }`}
+                            >
+                              {r}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
 
               <button 
@@ -522,17 +658,19 @@ export const AuthForm = () => {
                 disabled={loading}
                 className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-300 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer min-h-[44px]"
               >
-                <span>{isSignup ? "Register & Enter" : "Sign In & Enter"}</span>
+                <span>{loginMode === "subuser" ? "Access Workspace" : (isSignup ? "Register & Enter" : "Sign In & Enter")}</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
 
-              <button 
-                type="button" 
-                onClick={() => setIsSignup(!isSignup)} 
-                className="w-full text-center text-xs font-bold text-indigo-500 hover:text-indigo-600 transition-colors cursor-pointer py-1"
-              >
-                {isSignup ? "Already registered? Sign in here" : "Need an account? Create one in seconds"}
-              </button>
+              {loginMode === "parent" && (
+                <button 
+                  type="button" 
+                  onClick={() => setIsSignup(!isSignup)} 
+                  className="w-full text-center text-xs font-bold text-indigo-500 hover:text-indigo-600 transition-colors cursor-pointer py-1"
+                >
+                  {isSignup ? "Already registered? Sign in here" : "Need an account? Create one in seconds"}
+                </button>
+              )}
             </form>
           </div>
 

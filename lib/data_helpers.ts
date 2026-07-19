@@ -102,6 +102,21 @@ function saveDemoMasteryStats(stats: MasteryStat[]) {
 }
 
 export async function getCurrentProfile(): Promise<Profile | null> {
+  if (typeof window !== 'undefined') {
+    const subUserSessionStr = localStorage.getItem('sub_user_session');
+    if (subUserSessionStr) {
+      try {
+        const subUser = JSON.parse(subUserSessionStr);
+        return {
+          id: subUser.id,
+          name: subUser.name,
+          role: subUser.role === 'kid' ? 'student' : subUser.role,
+          email: `${subUser.id}@subuser.local`,
+          created_at: new Date().toISOString()
+        } as Profile;
+      } catch (e) {}
+    }
+  }
   if (isDemoSession()) {
     return getDemoUser();
   }

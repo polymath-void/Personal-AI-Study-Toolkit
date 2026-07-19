@@ -52,7 +52,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
-import GeminiAssistant from "./GeminiAssistant";
+// import GeminiAssistant from "./GeminiAssistant";
 import { MessageCenter } from "./shared/MessageCenter";
 import { updateMasteryStat, updateStudentActiveGuide, updateProfilePremiumStatus, updateUserProfile } from "../lib/data_helpers";
 import { getSupabase } from "../lib/supabase";
@@ -297,6 +297,29 @@ const DEFAULT_STUDY_GUIDE_BN: StudyGuide = {
   tags: ["বিজ্ঞান", "গাছপালা", "সালোকসংশ্লেষণ"],
   studySeconds: 150,
   cardsMasteredCount: 2
+};
+
+const LOCAL_MAD_LIBS = {
+  en: {
+    adjectives: ["Silly 🤪", "Scented 🌸", "Dancing 💃", "Giggly 😆", "Rainbow 🌈", "Sleepy 😴", "Flying 🛸", "Chocolate 🍫"],
+    nouns: ["Panda 🐼", "Dinosaur 🦖", "Unicorn 🦄", "Bunny 🐰", "Banana 🍌", "Waffle 🧇", "Spaceman 🧑‍🚀", "Alien 👽"],
+    verbs: ["hop around", "sneeze loudly 🤧", "do a backflip 🤸", "giggle endlessly", "swim in warm honey 🍯", "sing a high opera 🎤", "paint a massive star 🎨", "eat tiny sprinkles 🧁"],
+    stories: [
+      "The {adj} {noun} loves to {verb} every single morning!",
+      "Oh no! A {adj} {noun} is trying to {verb} inside my sparkly school backpack!",
+      "At the magic science lab, a {adj} {noun} started to {verb} with massive purple bubbles!"
+    ]
+  },
+  bn: {
+    adjectives: ["বোকা 🤪", "সুগন্ধি 🌸", "নাচুরে 💃", "হাসিখুশি 😆", "রামধনু 🌈", "ঘুমন্ত 😴", "উড়ন্ত 🛸", "চকোলেট 🍫"],
+    nouns: ["পান্ডা 🐼", "ডাইনোসর 🦖", "ইউনিকর্ন 🦄", "খরগোশ 🐰", "কলা 🍌", "ওয়াফেল 🧇", "মহাকাশচারী 🧑‍🚀", "এলিয়েন 👽"],
+    verbs: ["লাফালাফি করতে", "জোরে হাঁচি দিতে 🤧", "পেছনের দিকে ডিগবাজি খেতে 🤸", "একটানা খিলখিল করে হাসতে", "গরম মধুর মধ্যে সাঁতার কাটতে 🍯", "উঁচু গলায় গান গাইতে 🎤", "একটি বিশাল লাল তারা আঁকতে 🎨", "ছোট ছোট মিষ্টি স্প্রিংকিল খেতে 🧁"],
+    stories: [
+      "একটি {adj} {noun} প্রতিদিন সকালে {verb} খুব ভালোবাসে!",
+      "ওরে বাবা! একটি {adj} {noun} আমার রামধনু স্কুলের ব্যাগের ভেতর {verb} চেষ্টা করছে!",
+      "ম্যাজিক বিজ্ঞানের ল্যাবে, একটি {adj} {noun} বেগুনি বুদবুদ দিয়ে {verb} শুরু করেছে!"
+    ]
+  }
 };
 
 const DICTIONARY = {
@@ -594,10 +617,16 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
   const [isCardFlipped, setIsCardFlipped] = useState(false);
   const [cardStatus, setCardStatus] = useState<Record<number, "correct" | "review" | null>>({});
   const [guidesCardStatus, setGuidesCardStatus] = useState<Record<string, Record<number, "correct" | "review" | null>>>({});
-  const [quizMode, setQuizMode] = useState<"flashcard" | "mcq">("flashcard");
+  const [quizMode, setQuizMode] = useState<"flashcard" | "mcq" | "grammar">("flashcard");
   const [selectedMcqOption, setSelectedMcqOption] = useState<string | null>(null);
   const [isMcqAnswered, setIsMcqAnswered] = useState(false);
   const [shuffledMcqOptions, setShuffledMcqOptions] = useState<string[]>([]);
+
+  // Local Grammar Play / Mad Libs Game States
+  const [madLibAdj, setMadLibAdj] = useState("Silly 🤪");
+  const [madLibNoun, setMadLibNoun] = useState("Panda 🐼");
+  const [madLibVerb, setMadLibVerb] = useState("do a backflip 🤸");
+  const [madLibStoryIdx, setMadLibStoryIdx] = useState(0);
 
   // Mind map state
   const [selectedNode, setSelectedNode] = useState<{ name: string; description: string } | null>(null);
@@ -2531,14 +2560,15 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
                         { id: "dashboard", label: t.dashboard, icon: BarChart2, color: "text-indigo-500", bg: "bg-indigo-500/10" },
                         { id: "mindmap", label: t.mindmap, icon: Compass, color: "text-blue-500", bg: "bg-blue-500/10" },
                         { id: "flashcards", label: t.flashcards, icon: CheckCircle2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-                        { id: "clarifier", label: t.clarifier, icon: HelpCircle, color: "text-purple-500", bg: "bg-purple-500/10" },
-                        { id: "voiceChat", label: t.voiceChat, icon: Mic, color: "text-rose-500", bg: "bg-rose-500/10" },
+                        // Commented out 'Ask Study Buddy' and 'Voice Chat' features as requested
+                        // { id: "clarifier", label: t.clarifier, icon: HelpCircle, color: "text-purple-500", bg: "bg-purple-500/10" },
+                        // { id: "voiceChat", label: t.voiceChat, icon: Mic, color: "text-rose-500", bg: "bg-rose-500/10" },
                         { id: "messages", label: t.messages, icon: MessageSquare, color: "text-emerald-500", bg: "bg-emerald-500/10" },
                         { id: "parents", label: t.parentsCorner, icon: Sliders, color: "text-pink-500", bg: "bg-pink-500/10" }
                       ] as const).map((tab) => {
                         const Icon = tab.icon;
                         const isSelected = activeTab === tab.id;
-                        const isChatTab = tab.id === "clarifier" || tab.id === "voiceChat";
+                        const isChatTab = (tab.id as string) === "clarifier" || (tab.id as string) === "voiceChat";
 
                         return (
                           <button
@@ -3945,21 +3975,21 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
                             </button>
                           </div>
 
-                          {/* Mode Toggle (Flashcards vs MCQ Quiz) */}
-                          <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl dark:bg-[#0c1221] bg-slate-100 border dark:border-white/5 border-slate-200">
+                          {/* Mode Toggle (Flashcards vs MCQ Quiz vs Grammar Mad Libs) */}
+                          <div className="grid grid-cols-3 gap-2 p-1 rounded-2xl dark:bg-[#0c1221] bg-slate-100 border dark:border-white/5 border-slate-200">
                             <button
                               type="button"
                               onClick={() => {
                                 setQuizMode("flashcard");
                                 setIsCardFlipped(false);
                               }}
-                              className={`py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              className={`py-2.5 rounded-xl text-[11px] md:text-xs font-bold transition-all cursor-pointer ${
                                 quizMode === "flashcard"
                                   ? "bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow"
                                   : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                               }`}
                             >
-                              {appLanguage === "en" ? "🃏 Riddle Flashcards" : "🃏 ধাঁধার কার্ড"}
+                              {appLanguage === "en" ? "🃏 Riddles" : "🃏 ধাঁধা"}
                             </button>
                             <button
                               type="button"
@@ -3967,13 +3997,27 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
                                 setQuizMode("mcq");
                                 setIsCardFlipped(false);
                               }}
-                              className={`py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                              className={`py-2.5 rounded-xl text-[11px] md:text-xs font-bold transition-all cursor-pointer ${
                                 quizMode === "mcq"
                                   ? "bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow"
                                   : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
                               }`}
                             >
-                              {appLanguage === "en" ? "📝 Multiple Choice Quiz" : "📝 বহুনির্বাচনী কুইজ"}
+                              {appLanguage === "en" ? "📝 Quiz" : "📝 কুইজ"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setQuizMode("grammar");
+                                setIsCardFlipped(false);
+                              }}
+                              className={`py-2.5 rounded-xl text-[11px] md:text-xs font-bold transition-all cursor-pointer ${
+                                quizMode === "grammar"
+                                  ? "bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow"
+                                  : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                              }`}
+                            >
+                              {appLanguage === "en" ? "🎮 Grammar" : "🎮 ব্যাকরণ"}
                             </button>
                           </div>
 
@@ -4059,6 +4103,143 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
                                   )}
                                 </motion.div>
                               )}
+                            </div>
+                          ) : quizMode === "grammar" ? (
+                            <div className="space-y-6" id="grammar_game_box">
+                              {/* Active Story Card */}
+                              <div className="p-6 md:p-8 rounded-2xl border dark:border-white/5 border-slate-200 dark:bg-[#080d19] bg-white flex flex-col justify-between shadow-xl text-left relative overflow-hidden">
+                                <div className="flex justify-between items-center mb-4">
+                                  <span className="text-[10px] font-mono uppercase tracking-widest text-amber-500 font-bold">
+                                    {appLanguage === "en" ? "Mad Libs Story Builder 📝" : "ম্যাড লিবস গল্প তৈরির খেলা 📝"}
+                                  </span>
+                                  <div className="flex gap-2">
+                                    {LOCAL_MAD_LIBS[appLanguage as "en" | "bn"].stories.map((_, idx) => (
+                                      <button
+                                        key={idx}
+                                        onClick={() => setMadLibStoryIdx(idx)}
+                                        className={`w-6 h-6 rounded-full text-xs font-bold transition-all ${
+                                          madLibStoryIdx === idx
+                                            ? "bg-amber-500 text-white"
+                                            : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200"
+                                        }`}
+                                      >
+                                        {idx + 1}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                                
+                                <div className="py-6 text-center min-h-[100px] flex items-center justify-center">
+                                  <p className="text-md md:text-lg font-bold text-slate-800 dark:text-white leading-relaxed">
+                                    {(() => {
+                                      const story = LOCAL_MAD_LIBS[appLanguage as "en" | "bn"].stories[madLibStoryIdx];
+                                      return story
+                                        .replace("{adj}", `✨[${madLibAdj || "____"}]✨`)
+                                        .replace("{noun}", `🐻[${madLibNoun || "____"}]`)
+                                        .replace("{verb}", `🚀[${madLibVerb || "____"}]`);
+                                    })()}
+                                  </p>
+                                </div>
+
+                                <div className="flex justify-center border-t dark:border-white/5 border-slate-100 pt-4">
+                                  <button
+                                    onClick={() => {
+                                      const story = LOCAL_MAD_LIBS[appLanguage as "en" | "bn"].stories[madLibStoryIdx];
+                                      const cleanSentence = story
+                                        .replace("{adj}", madLibAdj.replace(/[\p{Emoji}\s]+/gu, "").trim())
+                                        .replace("{noun}", madLibNoun.replace(/[\p{Emoji}\s]+/gu, "").trim())
+                                        .replace("{verb}", madLibVerb.replace(/[\p{Emoji}\s]+/gu, "").trim());
+                                      speakText(cleanSentence);
+                                    }}
+                                    className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                                      isSpeaking
+                                        ? "bg-emerald-600 text-white animate-pulse"
+                                        : "bg-amber-500 hover:bg-amber-400 text-slate-900"
+                                    }`}
+                                  >
+                                    <Volume2 className="w-4 h-4" />
+                                    <span>{appLanguage === "en" ? "Read My Story Aloud! 🔊" : "গল্পটি জোরে পড়ো! 🔊"}</span>
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Selector Bubbles */}
+                              <div className="space-y-4 text-left">
+                                {/* Adjective Selector */}
+                                <div>
+                                  <p className="text-xs font-bold text-amber-500 mb-2 uppercase tracking-wider font-mono">
+                                    {appLanguage === "en" ? "Choose a describing word (Adjective):" : "একটি বর্ণনাকারী শব্দ (Adjective) বেছে নাও:"}
+                                  </p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {LOCAL_MAD_LIBS[appLanguage as "en" | "bn"].adjectives.map((adj) => (
+                                      <button
+                                        key={adj}
+                                        onClick={() => {
+                                          setMadLibAdj(adj);
+                                          confetti({ particleCount: 15, spread: 40, origin: { y: 0.8 } });
+                                        }}
+                                        className={`px-3.5 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                                          madLibAdj === adj
+                                            ? "bg-amber-500 text-slate-900 font-bold scale-[1.05] shadow-md"
+                                            : "bg-slate-100 dark:bg-slate-900/50 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
+                                        }`}
+                                      >
+                                        {adj}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Noun Selector */}
+                                <div>
+                                  <p className="text-xs font-bold text-indigo-400 mb-2 uppercase tracking-wider font-mono">
+                                    {appLanguage === "en" ? "Choose a naming word (Noun):" : "একটি নামবাচক শব্দ (Noun) বেছে নাও:"}
+                                  </p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {LOCAL_MAD_LIBS[appLanguage as "en" | "bn"].nouns.map((noun) => (
+                                      <button
+                                        key={noun}
+                                        onClick={() => {
+                                          setMadLibNoun(noun);
+                                          confetti({ particleCount: 15, spread: 40, origin: { y: 0.8 } });
+                                        }}
+                                        className={`px-3.5 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                                          madLibNoun === noun
+                                            ? "bg-[#6366f1] text-white font-bold scale-[1.05] shadow-md"
+                                            : "bg-slate-100 dark:bg-slate-900/50 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
+                                        }`}
+                                      >
+                                        {noun}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Verb Selector */}
+                                <div>
+                                  <p className="text-xs font-bold text-emerald-400 mb-2 uppercase tracking-wider font-mono">
+                                    {appLanguage === "en" ? "Choose an action word (Verb):" : "একটি কাজবাচক শব্দ (Verb) বেছে নাও:"}
+                                  </p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {LOCAL_MAD_LIBS[appLanguage as "en" | "bn"].verbs.map((verb) => (
+                                      <button
+                                        key={verb}
+                                        onClick={() => {
+                                          setMadLibVerb(verb);
+                                          confetti({ particleCount: 15, spread: 40, origin: { y: 0.8 } });
+                                        }}
+                                        className={`px-3.5 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                                          madLibVerb === verb
+                                            ? "bg-[#10b981] text-white font-bold scale-[1.05] shadow-md"
+                                            : "bg-slate-100 dark:bg-slate-900/50 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
+                                        }`}
+                                      >
+                                        {verb}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           ) : (
                             <>
@@ -4162,30 +4343,32 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
                           )}
 
                           {/* Navigation Buttons */}
-                          <div className="flex justify-between items-center pt-4">
-                            <button
-                              disabled={currentCardIndex === 0}
-                              onClick={() => { setIsCardFlipped(false); setCurrentCardIndex((prev) => prev - 1); }}
-                              className="px-5 py-3.5 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:hover:text-slate-500 transition-all text-xs md:text-sm font-bold flex items-center gap-2 cursor-pointer min-h-[44px] bg-slate-100 dark:bg-slate-900 border dark:border-white/5 border-slate-200 shadow-sm"
-                            >
-                              <ArrowLeft className="w-4 h-4 shrink-0" /> {t.prevCard}
-                            </button>
-                            <button
-                              disabled={currentCardIndex === activeGuide.flashcards.length - 1}
-                              onClick={() => { setIsCardFlipped(false); setCurrentCardIndex((prev) => prev + 1); }}
-                              className="px-5 py-3.5 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:hover:text-slate-500 transition-all text-xs md:text-sm font-bold flex items-center gap-2 cursor-pointer min-h-[44px] bg-slate-100 dark:bg-[#131b2e] border dark:border-white/5 border-slate-200 shadow-sm"
-                            >
-                              {t.nextCard} <ArrowRight className="w-4 h-4 shrink-0" />
-                            </button>
-                          </div>
+                          {quizMode !== "grammar" && (
+                            <div className="flex justify-between items-center pt-4">
+                              <button
+                                disabled={currentCardIndex === 0}
+                                onClick={() => { setIsCardFlipped(false); setCurrentCardIndex((prev) => prev - 1); }}
+                                className="px-5 py-3.5 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:hover:text-slate-500 transition-all text-xs md:text-sm font-bold flex items-center gap-2 cursor-pointer min-h-[44px] bg-slate-100 dark:bg-slate-900 border dark:border-white/5 border-slate-200 shadow-sm"
+                              >
+                                <ArrowLeft className="w-4 h-4 shrink-0" /> {t.prevCard}
+                              </button>
+                              <button
+                                disabled={currentCardIndex === activeGuide.flashcards.length - 1}
+                                onClick={() => { setIsCardFlipped(false); setCurrentCardIndex((prev) => prev + 1); }}
+                                className="px-5 py-3.5 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-30 disabled:hover:text-slate-500 transition-all text-xs md:text-sm font-bold flex items-center gap-2 cursor-pointer min-h-[44px] bg-slate-100 dark:bg-[#131b2e] border dark:border-white/5 border-slate-200 shadow-sm"
+                              >
+                                {t.nextCard} <ArrowRight className="w-4 h-4 shrink-0" />
+                              </button>
+                            </div>
+                          )}
                         </>
                       );
                     })()}
                   </motion.div>
                 )}
 
-                {/* TAB 4: CONCEPT CLARIFIER CHAT */}
-                {activeTab === "clarifier" && (
+                {/* TAB 4: CONCEPT CLARIFIER CHAT (Paused for now) */}
+                {false && activeGuide && activeTab === "clarifier" && (
                   <motion.div
                     key="clarifier"
                     initial={{ opacity: 0, x: 25 }}
@@ -4202,7 +4385,7 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
                         <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                         <div>
                           <h4 className="text-xs font-bold text-slate-800 dark:text-white">{t.activePedagogyClarifier}</h4>
-                          <p className="text-[10px] text-slate-500 font-sans">{appLanguage === "en" ? "Strictly Grounded in" : "শুধুমাত্র প্রাসঙ্গিক:"} {activeGuide.topicName}</p>
+                          <p className="text-[10px] text-slate-500 font-sans">{appLanguage === "en" ? "Strictly Grounded in" : "শুধুমাত্র প্রাসঙ্গিক:"} {activeGuide?.topicName}</p>
                         </div>
                       </div>
                       
@@ -4249,7 +4432,7 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
                     <div className="p-3 border-t dark:border-white/5 border-slate-200 dark:bg-[#090f1a] bg-slate-50/50 shrink-0">
                       <p className="text-[10px] text-slate-500 font-mono uppercase tracking-wider mb-2">{appLanguage === "en" ? "Suggested Inquiries:" : "পরামর্শ দেওয়া প্রশ্ন:"}</p>
                       <div className="flex flex-wrap gap-1.5">
-                        {activeGuide.vocabulary && activeGuide.vocabulary.slice(0, 3).map((v) => (
+                        {activeGuide?.vocabulary && activeGuide?.vocabulary.slice(0, 3).map((v) => (
                           <button
                             key={v.term}
                             onClick={() => handleSendChat(appLanguage === "en" ? `Can you explain the significance of ${v.term} using another everyday analogy?` : `আমায় ${v.term} এর তাৎপর্য আরেকটি বাস্তব উদাহরণের সাহায্যে বোঝাতে পারো?`)}
@@ -4292,8 +4475,8 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
 
                 {/* TAB 5: PROGRESS ANALYTICS DASHBOARD */}
                 
-                {/* Voice Chat Tab */}
-                {activeTab === "voiceChat" && (
+                {/* Voice Chat Tab (Paused for now) */}
+                {false && activeGuide && activeTab === "voiceChat" && (
                   <motion.div
                     key="voiceChat"
                     initial={{ opacity: 0, x: 25 }}
@@ -5605,7 +5788,7 @@ export default function StudyGuideApp({ profile }: { profile?: Profile }) {
         )}
       </AnimatePresence>
 
-      <GeminiAssistant activeGuide={activeGuide} appLanguage={appLanguage} />
+      {/* <GeminiAssistant activeGuide={activeGuide} appLanguage={appLanguage} /> */}
     </div>
   );
 }

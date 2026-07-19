@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import React from "react";
+
 // Dynamically import the main application with SSR disabled to prevent 
 // React hydration mismatches with browser-side localStorage.
 const Gateway = dynamic(() => import("@/components/gateway/Gateway"), {
@@ -21,3 +22,4 @@ const Gateway = dynamic(() => import("@/components/gateway/Gateway"), {
 export default function Home() {
   return <Gateway />;
 }
+

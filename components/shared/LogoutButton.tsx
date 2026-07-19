@@ -6,6 +6,7 @@ export const LogoutButton = () => {
   const handleLogout = async () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("study_buddy_demo_user");
+      localStorage.removeItem("sub_user_session");
     }
     try {
       const supabase = getSupabase();
